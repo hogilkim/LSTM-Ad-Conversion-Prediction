@@ -35,6 +35,23 @@ cutoff, labels each with whether a `buy` happens in the following 24 hours, and 
 uv run python -m taobao.data.prepare --n-users 200000 --seed 42
 ```
 
+Recorded run (2026-09-02, Apple M1 Pro, 14.9 s wall, about 6.5 GB peak RSS):
+
+| | value |
+|---|---|
+| Raw rows | 100,150,807 |
+| Dropped out-of-window rows (junk timestamps) | 55,576 |
+| Users with valid events / sampled | 987,991 / 200,000 (seed 42) |
+| Sampled events | 20,254,681 |
+| Vocabulary sizes (incl. pad and rare) | items 552,305, categories 6,964, behaviors 5 |
+| Train (cutoffs Nov 28 to Dec 1, split 0) | 742,611 examples, positive rate 0.1473, mean seq_len 31.5 |
+| Validation (cutoff Dec 2, split 1) | 198,453 examples, positive rate 0.1759, mean seq_len 37.6 |
+| Test (cutoff Dec 3, split 2) | 199,863 examples, positive rate 0.1763, mean seq_len 40.6 |
+
+Vocabularies are built only from events before the validation cutoff (Dec 2), so item and
+category indices never see validation or test days; ids seen fewer than 5 times map to the
+`rare` index 1 and index 0 is padding. Full details live in `data/processed/stats.json`.
+
 ## Tests
 
 ```bash

@@ -1444,8 +1444,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.135.5" },
-    { name = "numpy", specifier = ">=2.4.4" },
+    { name = "fastapi", specifier = ">=0.141.1" },
+    { name = "numpy", specifier = ">=2.5.2" },
     { name = "polars", specifier = ">=1.44.1" },
     { name = "pyarrow", specifier = ">=25.0.1" },
     { name = "scikit-learn", specifier = ">=1.9.0" },
@@ -1455,8 +1455,8 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "kaggle", specifier = ">=2.0.0" },
-    { name = "pytest", specifier = ">=9.1.0" },
+    { name = "kaggle", specifier = ">=2.2.4" },
+    { name = "pytest", specifier = ">=9.1.1" },
 ]
 
 [[package]]
