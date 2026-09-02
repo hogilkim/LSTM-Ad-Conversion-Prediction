@@ -1,0 +1,18 @@
+# Data and model artifacts are never committed. Patterns are anchored to the repo root so
+# that src/taobao/data/ is not caught; the empty directories are kept via .gitkeep.
+/data/*
+!/data/raw/
+!/data/processed/
+/data/raw/*
+/data/processed/*
+!/data/raw/.gitkeep
+!/data/processed/.gitkeep
+/models/*
+!/models/.gitkeep
+*.pt
+
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+notebooks/.ipynb_checkpoints/
