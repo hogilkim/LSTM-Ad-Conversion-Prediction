@@ -1,6 +1,6 @@
-# taobao-conversion-lstm
+# LSTM-Ad-Conversion-Prediction
 
-Conversion prediction from user behavior sequences. Given a Taobao user's last 50
+Ad conversion-rate prediction (pCVR) from user behavior sequences. Given a Taobao user's last 50
 behavior events (page views, cart adds, favorites, purchases), predict whether that user
 makes any purchase in the next 24 hours. An LSTM in PyTorch is compared against a
 logistic regression baseline on count features, using strictly time-based splits
@@ -8,6 +8,11 @@ logistic regression baseline on count features, using strictly time-based splits
 (planned). Data: Alibaba Taobao UserBehavior, official source
 [Tianchi dataset 649](https://tianchi.aliyun.com/dataset/649), downloaded from the Kaggle
 mirror `marwa80/userbehavior`.
+
+**Scope.** This is the user-level conversion propensity that sits underneath an ads bid,
+where `bid = value x pCVR`. It is trained on organic e-commerce behavior: the dataset
+contains no ad impressions, no candidate ads and no attribution window, so this is a
+conversion model, not an ads ranking system, and is not claimed to be one.
 
 ## Setup
 
