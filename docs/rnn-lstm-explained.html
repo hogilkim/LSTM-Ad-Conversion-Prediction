@@ -265,6 +265,14 @@ pre{max-width:var(--mid); margin:1.4em auto; background:var(--surface); color:va
 pre code{background:none; padding:0; font-size:inherit}
 .cm{color:var(--ink-3)} .kw{color:var(--output)} .st{color:var(--hidden)} .fn{color:var(--cell)} .nu{color:var(--cand)}
 pre.wide{max-width:var(--wide)}
+.code-head{max-width:var(--mid); margin:1.4em auto -1.4em; padding:8px 14px; display:flex;
+  align-items:center; justify-content:space-between; gap:12px; background:var(--surface-2);
+  border:1px solid var(--rule); border-bottom:0; border-left:3px solid var(--hidden); border-radius:0 9px 0 0;
+  font-family:var(--f-mono); font-size:10.5px; letter-spacing:.04em; color:var(--ink-3)}
+.code-head + pre{border-top-left-radius:0; border-left-color:var(--hidden)}
+.code-head.wide{max-width:var(--wide)}
+.code-head .actual{color:var(--hidden); font-weight:700; text-transform:uppercase; letter-spacing:.12em}
+.code-head a{color:var(--ink-2); text-decoration:none}.code-head a:hover{color:var(--cell)}
 
 /* ---------- cells / matrix visuals ---------- */
 .cells{display:flex; gap:4px; flex-wrap:wrap; align-items:center}
@@ -320,6 +328,7 @@ footer p{font-size:14.5px; color:var(--ink-3)}
     <span class="pill">Assumes no maths beyond arithmetic</span>
     <span class="pill">19 interactive demos</span>
     <span class="pill">8 step-by-step walkthroughs</span>
+    <span class="pill">Synced to the current implementation</span>
     <span class="pill">Every symbol defined</span>
   </div>
 </header>
@@ -370,9 +379,9 @@ footer p{font-size:14.5px; color:var(--ink-3)}
   <div class="define"><span class="define-term">vector</span> an ordered list of numbers, written <span class="m">[0.2, -1.1, 0.5]</span>. <em class="lead">Ordered</em> matters: the first slot always means the same thing as the first slot, so <span class="m">[0.2, -1.1, 0.5]</span> and <span class="m">[-1.1, 0.2, 0.5]</span> are different vectors. This one has three slots, so it is a <em class="lead">3-dimensional vector</em>, written <span class="m">x &isin; &#8477;<sup>3</sup></span>. Read that as &ldquo;x is one of the lists of 3 real numbers&rdquo;. <span class="m">&#8477;</span> is just the set of all ordinary numbers; the superscript is how many of them.</div>
   <div class="define"><span class="define-term">dimension</span> how many slots a vector has. Confusingly, people also say &ldquo;a 64-dimensional hidden state&rdquo; to mean a vector with 64 slots. Same thing. Nothing to do with physical space.</div>
   <div class="define"><span class="define-term">matrix</span> a rectangular grid of numbers &mdash; a stack of vectors, all the same length. A matrix with 2 rows and 3 columns has <em class="lead">shape</em> <span class="m">(2, 3)</span>. Rows first, always.</div>
-  <div class="define"><span class="define-term">tensor</span> the generic word for &ldquo;a block of numbers with any number of axes&rdquo;. A scalar is a 0-axis tensor, a vector is 1-axis, a matrix is 2-axis, and a batch of 32 sequences of 50 events each holding 41 numbers is a 3-axis tensor of shape <span class="m">(32, 50, 41)</span>. PyTorch calls all of them <span class="m">Tensor</span>. That is the only reason the word exists here.</div>
+  <div class="define"><span class="define-term">tensor</span> the generic word for &ldquo;a block of numbers with any number of axes&rdquo;. A scalar is a 0-axis tensor, a vector is 1-axis, a matrix is 2-axis, and a batch of 32 sequences of 50 events each holding 37 numbers is a 3-axis tensor of shape <span class="m">(32, 50, 37)</span>. PyTorch calls all of them <span class="m">Tensor</span>. That is the only reason the word exists here.</div>
 
-  <p>You will see shapes constantly, so get in the habit of reading them out loud. <span class="m">(32, 50, 41)</span> is &ldquo;32 users, 50 events each, 41 numbers describing each event&rdquo;. Almost every bug in this kind of code is a shape that means something other than what you thought.</p>
+  <p>You will see shapes constantly, so get in the habit of reading them out loud. <span class="m">(32, 50, 37)</span> is &ldquo;32 users, 50 events each, 37 numbers describing each event&rdquo;. Almost every bug in this kind of code is a shape that means something other than what you thought.</p>
 
   <h3>0.2 &nbsp;The weighted sum, which is the whole machine</h3>
   <p>The core learned operation in a neural network is repeated a few million times: <em class="lead">multiply each input by a number that says how much it matters, add the results up, then add one more number.</em> Non-linearities and gates decide how those weighted sums are used.</p>
@@ -611,7 +620,7 @@ footer p{font-size:14.5px; color:var(--ink-3)}
     <figcaption>Row 0 is reserved for padding and pinned at zero &mdash; Part 6 explains why. Row 1 is the shared &ldquo;rare&rdquo; row for any category seen fewer than 5 times in training.</figcaption>
   </figure>
 
-  <div class="note"><span class="lbl">In this project</span><p>Two embedding tables. Categories: <span class="m">nn.Embedding(6964, 32, padding_idx=0)</span>. Behaviours: <span class="m">nn.Embedding(5, 8, padding_idx=0)</span> for the four types <span class="m">pv, cart, fav, buy</span> mapped to 1&ndash;4, with 0 left for padding. Item IDs get no table in version 1 &mdash; 552,000 items &times; 32 would be 17.7 million parameters, and the median item appears only 17 times in training, which is far too little to learn a meaningful row from.</p></div>
+  <div class="note"><span class="lbl">In the implemented model</span><p>Two embedding tables. Categories: <span class="m">nn.Embedding(6964, 32, padding_idx=0)</span>. Behaviours: <span class="m">nn.Embedding(5, 4, padding_idx=0)</span> for the four types <span class="m">pv, cart, fav, buy</span> mapped to 1&ndash;4, with 0 left for padding. Item IDs get no table in version 1 &mdash; 552,000 items &times; 32 would be 17.7 million parameters, and the median item appears only 17 times in training, which is far too little to learn a meaningful row from.</p></div>
   <h3>0.7 &nbsp;What a derivative is, with no calculus assumed</h3>
   <p>Part 3 is the important part of this page, and it is entirely about derivatives. So here is the whole idea, built from &ldquo;how steep is this hill&rdquo;.</p>
 
@@ -908,7 +917,7 @@ footer p{font-size:14.5px; color:var(--ink-3)}
   <div class="trap"><span class="lbl">Why this matters here</span><p>Cart-then-continue-browsing and browse-then-cart are plausible examples of patterns that counts alone cannot separate. Whether this dataset contains enough such signal to improve AUC is an empirical question, not something the architecture proves. That is why a masked mean-pooling ablation matters: it measures how much performance survives when order is removed.</p></div>
 
   <h3>Attempt 2 &mdash; glue all 50 events into one long vector</h3>
-  <p>Order preserved this time: stack event 1&rsquo;s numbers, then event 2&rsquo;s, and so on, into a single vector of length <span class="m">50 &times; 41 = 2050</span>. Feed that to a normal network. Three problems, in increasing order of seriousness.</p>
+  <p>Order preserved this time: stack event 1&rsquo;s numbers, then event 2&rsquo;s, and so on, into a single vector of length <span class="m">50 &times; 37 = 1850</span>. Feed that to a normal network. Three problems, in increasing order of seriousness.</p>
 
   <ol class="steps">
     <li><span class="sh">It is rigid.</span> The network now has exactly 2050 input slots. A user with 7 events does not fit; a user with 80 does not fit. You are back to padding and truncating, which is not itself fatal but shows the design is fighting the data.</li>
@@ -965,8 +974,8 @@ optimizer.step()                    <span class="cm"># only model parameters are
   <ul class="legend">
     <li><span class="sym c-hidden">h<sub>t</sub></span><span>the new hidden state, 64 numbers, each squashed into <span class="m">(&minus;1, 1)</span> by the tanh.</span></li>
     <li><span class="sym c-hidden">h<sub>t&minus;1</sub></span><span>the hidden state computed after the previous event. For the very first event this is all zeros.</span></li>
-    <li><span class="sym c-x">x<sub>t</sub></span><span>the current event from the dataset, represented as numbers: its category embedding, its behaviour embedding, and its scaled age, all glued end to end. 41 numbers in this project.</span></li>
-    <li><span class="sym c-cell">W<sub>x</sub></span><span>shape <span class="m">(64, 41)</span>. A learned parameter. Controls how the current event affects each of the 64 hidden-state slots.</span></li>
+    <li><span class="sym c-x">x<sub>t</sub></span><span>the current event from the dataset, represented as numbers: its category embedding, its behaviour embedding, and its scaled age, all glued end to end. 37 numbers in this project.</span></li>
+    <li><span class="sym c-cell">W<sub>x</sub></span><span>shape <span class="m">(64, 37)</span>. A learned parameter. Controls how the current event affects each of the 64 hidden-state slots.</span></li>
     <li><span class="sym c-cell">W<sub>h</sub></span><span>shape <span class="m">(64, 64)</span>. A learned parameter. Controls how the previous hidden state affects the new one. This matrix is where the trouble in Part 3 comes from.</span></li>
     <li><span class="sym c-cand">b</span><span>64 biases, one per slot.</span></li>
     <li><span class="sym c-x">tanh</span><span>squashes each of the 64 results into <span class="m">(&minus;1, 1)</span> so the hidden state cannot run away to huge values as the formula is applied over and over.</span></li>
@@ -1264,8 +1273,8 @@ optimizer.step()                    <span class="cm"># only model parameters are
   <h4>First, a notation warning</h4>
   <p>Three things about <span class="m">W<sub>f</sub> &middot; [h<sub>t&minus;1</sub>, x<sub>t</sub>]</span> need saying before you meet it, because the padding derivation in Part 6 depends on all three.</p>
   <ol class="steps">
-    <li><span class="sh">The dot here is a matrix&ndash;vector product, not the dot product from 0.2.</span> Unfortunate collision, and it is universal in the literature. <span class="m">W<sub>f</sub></span> is a matrix of shape <span class="m">(64, 105)</span> &mdash; 64 rows because there are 64 memory slots, 105 columns because <span class="m">[h<sub>t&minus;1</sub>, x<sub>t</sub>]</span> is 64 + 41 numbers glued together. The result is a vector of 64, exactly as in 0.3.</li>
-    <li><span class="sh">One matrix on a concatenation is the same thing as two matrices added.</span> Split those 105 columns into the first 64 and the last 41 and the arithmetic comes apart cleanly:
+    <li><span class="sh">The dot here is a matrix&ndash;vector product, not the dot product from 0.2.</span> Unfortunate collision, and it is universal in the literature. <span class="m">W<sub>f</sub></span> is a matrix of shape <span class="m">(64, 101)</span> &mdash; 64 rows because there are 64 memory slots, 101 columns because <span class="m">[h<sub>t&minus;1</sub>, x<sub>t</sub>]</span> is 64 + 37 numbers glued together. The result is a vector of 64, exactly as in 0.3.</li>
+    <li><span class="sh">One matrix on a concatenation is the same thing as two matrices added.</span> Split those 101 columns into the first 64 and the last 37 and the arithmetic comes apart cleanly:
       <div class="eq" style="margin:.7em 0"><div class="eq-line"><span class="c-forget">W<sub>f</sub></span> &middot; [<span class="c-hidden">h<sub>t&minus;1</sub></span>, <span class="c-x">x<sub>t</sub></span>] &nbsp;=&nbsp; <span class="c-forget">W<sub>hf</sub></span> <span class="c-hidden">h<sub>t&minus;1</sub></span> &nbsp;+&nbsp; <span class="c-forget">W<sub>xf</sub></span> <span class="c-x">x<sub>t</sub></span></div></div>
       Not an approximation &mdash; the two forms are literally the same sum, regrouped. Papers write the left form because it is compact; PyTorch stores the right form, as <span class="m">weight_ih_l0</span> and <span class="m">weight_hh_l0</span>. <em class="lead">Remember the right-hand form.</em> It is why a padding step with <span class="m">x<sub>t</sub> = 0</span> still moves the state: the <span class="m">W<sub>hf</sub>h<sub>t&minus;1</sub></span> half is untouched.</li>
     <li><span class="sh">The single <span class="m">b<sub>f</sub></span> is two biases in the code.</span> Because PyTorch keeps the input and recurrent matrices apart, it stores two full bias vectors as <span class="m">bias_ih_l0</span> and <span class="m">bias_hh_l0</span>; the forget-gate slices are often written <span class="m">b<sub>if</sub></span> and <span class="m">b<sub>hf</sub></span>. They are added together in the standard LSTM equations, so writing one <span class="m">b<sub>f</sub></span> loses nothing &mdash; but it is why the parameter count in 4.10 charges 128 bias parameters per gate rather than 64.</li>
@@ -1512,19 +1521,19 @@ optimizer.step()                    <span class="cm"># only model parameters are
 
   <h3>4.10 &nbsp;How much bigger is an LSTM than an RNN?</h3>
   <p>Worth knowing precisely, because &ldquo;your LSTM only won because it has more parameters&rdquo; is a fair challenge and you should have the number ready.</p>
-  <p>Each of the four gates needs its own copy of everything the RNN had: an input matrix, a recurrent matrix, and biases. With input size 41 and hidden size 64:</p>
+  <p>Each of the four gates needs its own copy of everything the RNN had: an input matrix, a recurrent matrix, and biases. With the implemented input size 37 and hidden size 64:</p>
   <div class="tw">
     <table>
       <thead><tr><th>model</th><th>per gate</th><th>gates</th><th>total recurrent parameters</th><th>vs. RNN</th></tr></thead>
       <tbody>
-        <tr><td class="k">RNN</td><td>64&times;41 + 64&times;64 + 128 = 6,848</td><td>1</td><td>6,848</td><td>1.0&times;</td></tr>
-        <tr><td class="k">GRU</td><td>6,848</td><td>3</td><td>20,544</td><td>3.0&times;</td></tr>
-        <tr><td class="k">LSTM</td><td>6,848</td><td>4</td><td>27,392</td><td>4.0&times;</td></tr>
+        <tr><td class="k">RNN</td><td>64&times;37 + 64&times;64 + 128 = 6,592</td><td>1</td><td>6,592</td><td>1.0&times;</td></tr>
+        <tr><td class="k">GRU</td><td>6,592</td><td>3</td><td>19,776</td><td>3.0&times;</td></tr>
+        <tr><td class="k">LSTM</td><td>6,592</td><td>4</td><td>26,368</td><td>4.0&times;</td></tr>
       </tbody>
     </table>
   </div>
   <p class="tcap">The <span class="m">128</span> is two bias vectors of 64. PyTorch keeps separate input-side and recurrent-side biases. For its RNN and LSTM equations those two vectors are mathematically redundant because they are added together. For the GRU&rsquo;s <span class="m">n</span> gate they are <em class="lead">not</em> redundant: <span class="m">b<sub>hn</sub></span> is multiplied by the reset gate and <span class="m">b<sub>in</sub></span> is not, so they cannot be folded into one.</p>
-  <div class="note"><span class="lbl">How to answer the challenge</span><p>Either match parameter counts &mdash; solving <span class="m">H&sup2; + 43H = 27,392</span> puts a comparable RNN at hidden size <span class="m">145</span>, not 128, which only reaches 21,888 &mdash; or lean on the mean-pooling ablation &mdash; but read 7.6 first on what that ablation does and does not control for. Part 8 has the full version of this answer.</p></div>
+  <div class="note"><span class="lbl">How to answer the challenge</span><p>Either match parameter counts &mdash; solving <span class="m">H&sup2; + 39H = 26,368</span> puts a comparable RNN almost exactly at hidden size <span class="m">144</span>, not 128, which reaches 21,376 &mdash; or lean on the mean-pooling ablation &mdash; but read 7.6 first on what that ablation does and does not control for. Part 8 has the full version of this answer.</p></div>
 </section>
 
 <hr class="div">
@@ -1707,7 +1716,7 @@ optimizer.step()                    <span class="cm"># only model parameters are
 
   <h3>6.1 &nbsp;Why sequences get padded</h3>
   <ol class="steps">
-    <li><span class="sh">Processors want rectangles.</span> Running one user at a time wastes almost all of a CPU or GPU. You want to process 256 users at once, which means one tensor holding all of them: shape <span class="m">(256, T, 41)</span> &mdash; 256 users, T timesteps, 41 numbers per event. From here on <span class="m">B</span> is the standard name for that first number, the <em class="lead">batch size</em>, so the same shape is written <span class="m">(B, T, 41)</span> or, since T is fixed at 50 here, <span class="m">(B, 50, 41)</span>.</li>
+    <li><span class="sh">Processors want rectangles.</span> Running one user at a time wastes almost all of a CPU or GPU. You want to process 256 users at once, which means one tensor holding all of them: shape <span class="m">(256, T, 37)</span> &mdash; 256 users, T timesteps, 37 numbers per event. From here on <span class="m">B</span> is the standard name for that first number, the <em class="lead">batch size</em>, so the same shape is written <span class="m">(B, T, 37)</span> or, since T is fixed at 50 here, <span class="m">(B, 50, 37)</span>.</li>
     <li><span class="sh">But users have different lengths.</span> In this dataset, between 3 and 50 events, averaging around 31 to 41 depending on the cutoff. A tensor cannot have ragged rows.</li>
     <li><span class="sh">So you pad.</span> Fill every short row out to length 50 with a filler value &mdash; index 0, which is reserved and never a real category or behaviour. Real events first, filler after: <em class="lead">right padding</em>.</li>
     <li><span class="sh">And you record the real length.</span> A separate <span class="m">lengths</span> tensor of shape <span class="m">(256,)</span> says where each row&rsquo;s real data stops. Everything in the rest of this section depends on having that.</li>
@@ -1794,7 +1803,7 @@ lengths_x = lengths.<span class="fn">to</span>(x.device)
 positions = torch.<span class="fn">arange</span>(x.<span class="fn">size</span>(<span class="nu">1</span>), device=x.device)
 mask = (positions[<span class="kw">None</span>, :] &lt; lengths_x[:, <span class="kw">None</span>]).<span class="fn">unsqueeze</span>(<span class="nu">-1</span>)
 pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) / lengths_x.<span class="fn">unsqueeze</span>(<span class="nu">-1</span>)</code></pre>
-  <p>That mask code is the densest on this page, so take it apart. First <span class="m">lengths</span> is copied to the same device as <span class="m">x</span>; this matters on a GPU even though packing itself requires CPU lengths. <span class="m">torch.arange(50)</span> is <span class="m">[0, 1, 2, &hellip;, 49]</span>. <span class="m">[None, :]</span> turns it into a <span class="m">(1, 50)</span> row. <span class="m">lengths_x[:, None]</span> is a <span class="m">(B, 1)</span> column. Comparing them gives a <span class="m">(B, 50)</span> true/false grid by <em class="lead">broadcasting</em>: an axis of size 1 is repeated to match. Each row asks &ldquo;is position <span class="m">t</span> less than this user&rsquo;s length?&rdquo; <span class="m">unsqueeze(-1)</span> adds a trailing axis so the mask can multiply the <span class="m">(B, 50, 41)</span> tensor across all 41 features.</p>
+  <p>That mask code is the densest on this page, so take it apart. First <span class="m">lengths</span> is copied to the same device as <span class="m">x</span>; this matters on a GPU even though packing itself requires CPU lengths. <span class="m">torch.arange(50)</span> is <span class="m">[0, 1, 2, &hellip;, 49]</span>. <span class="m">[None, :]</span> turns it into a <span class="m">(1, 50)</span> row. <span class="m">lengths_x[:, None]</span> is a <span class="m">(B, 1)</span> column. Comparing them gives a <span class="m">(B, 50)</span> true/false grid by <em class="lead">broadcasting</em>: an axis of size 1 is repeated to match. Each row asks &ldquo;is position <span class="m">t</span> less than this user&rsquo;s length?&rdquo; <span class="m">unsqueeze(-1)</span> adds a trailing axis so the mask can multiply the <span class="m">(B, 50, 37)</span> tensor across all 37 features.</p>
 
   <p>That mask line again, drawn &mdash; with <span class="m">T</span> shrunk from 50 to 8 and the batch from 256 to 4 so that every cell fits on the screen.</p>
 
@@ -1847,8 +1856,76 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
   <div class="sec-head">
     <span class="sec-num">PART 07</span>
     <h2 class="sec-title">This project, end to end</h2>
-    <p class="sec-sub">One real Taobao user, followed from twelve raw CSV rows all the way to a probability &mdash; with the shape of every tensor at every step, and an honest account of what the LSTM can and cannot buy you here.</p>
+    <p class="sec-sub">The code that exists in this repository: one real Taobao user followed from raw CSV rows through preprocessing, memory-mapped tensors, the packed LSTM, training, model selection and one final test evaluation.</p>
   </div>
+
+  <div class="win"><span class="lbl">Implementation status</span><p><strong>Implemented and tested:</strong> raw-data preparation, fixed tensor artifacts, a memory-mapped dataset, the packed <span class="m">ConversionLSTM</span>, reproducible training, AUC and log-loss evaluation, validation-AUC early stopping, atomic best-checkpoint saving, restoration, and test-once evaluation. <strong>Not implemented yet:</strong> the logistic-regression baseline, trained result values, and the FastAPI serving endpoint. This section labels future work explicitly instead of presenting it as code that already exists.</p></div>
+
+  <h3>7.0 &nbsp;Where the implementation lives</h3>
+  <p>Read this diagram left to right. Solid colored boxes are Python modules in the repository; neutral boxes are artifacts or runtime values those modules produce. The second row starts from the saved arrays rather than loading the whole processed dataset into memory.</p>
+  <figure id="fig-implementation">
+    <div class="figbox">
+      <svg viewBox="0 0 880 360" role="img" aria-label="Implemented project pipeline: prepare.py creates examples parquet, tensors.py creates split NumPy arrays, dataset.py memory-maps them into DataLoaders, model.py produces logits with a packed LSTM, and train.py trains, validates, saves the best checkpoint, restores it, and evaluates test once.">
+        <defs>
+          <marker id="im-i" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--ink-3)"/></marker>
+          <marker id="im-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--hidden)"/></marker>
+        </defs>
+        <g font-family="'JetBrains Mono',monospace">
+          <text x="24" y="24" fill="var(--ink-3)" font-size="10.5" letter-spacing="1.4">BUILD ARTIFACTS &mdash; RUN ONCE</text>
+
+          <a href="../src/taobao/data/prepare.py"><rect x="24" y="40" width="184" height="72" rx="8" fill="var(--cell-bg)" stroke="var(--cell)" stroke-width="1.5"/>
+          <text x="116" y="63" fill="var(--cell)" font-size="11" text-anchor="middle" font-weight="700">data/prepare.py</text>
+          <text x="116" y="82" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">filter &middot; sample &middot; encode</text>
+          <text x="116" y="98" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">cutoffs &middot; labels &middot; splits</text></a>
+          <line x1="208" y1="76" x2="242" y2="76" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#im-i)"/>
+          <rect x="244" y="49" width="142" height="54" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
+          <text x="315" y="71" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">examples.parquet</text>
+          <text x="315" y="88" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">ragged event lists</text>
+          <line x1="386" y1="76" x2="420" y2="76" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#im-i)"/>
+          <a href="../src/taobao/data/tensors.py"><rect x="422" y="40" width="184" height="72" rx="8" fill="var(--input-bg)" stroke="var(--input)" stroke-width="1.5"/>
+          <text x="514" y="63" fill="var(--input)" font-size="11" text-anchor="middle" font-weight="700">data/tensors.py</text>
+          <text x="514" y="82" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">right-pad to 50</text>
+          <text x="514" y="98" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">scale hours &middot; save .npy</text></a>
+          <line x1="606" y1="76" x2="640" y2="76" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#im-i)"/>
+          <rect x="642" y="40" width="214" height="72" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
+          <text x="749" y="63" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">train/val/test_*.npy</text>
+          <text x="749" y="82" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">cats &middot; behs &middot; hours</text>
+          <text x="749" y="98" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">lengths &middot; labels</text>
+
+          <path d="M749 112 L749 148 L116 148 L116 174" fill="none" stroke="var(--hidden)" stroke-width="1.5" marker-end="url(#im-h)"/>
+          <text x="432" y="141" fill="var(--hidden)" font-size="9.5" text-anchor="middle">training reads selected arrays on demand</text>
+          <text x="24" y="167" fill="var(--ink-3)" font-size="10.5" letter-spacing="1.4">TRAIN AND SELECT &mdash; src/taobao/train.py ORCHESTRATES THIS ROW</text>
+
+          <a href="../src/taobao/data/dataset.py"><rect x="24" y="180" width="184" height="72" rx="8" fill="var(--cand-bg)" stroke="var(--cand)" stroke-width="1.5"/>
+          <text x="116" y="203" fill="var(--cand)" font-size="11" text-anchor="middle" font-weight="700">data/dataset.py</text>
+          <text x="116" y="222" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">mmap arrays &middot; copy one row</text>
+          <text x="116" y="238" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">DataLoader stacks batches</text></a>
+          <line x1="208" y1="216" x2="242" y2="216" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#im-i)"/>
+          <a href="../src/taobao/model.py"><rect x="244" y="180" width="184" height="72" rx="8" fill="var(--hidden-bg)" stroke="var(--hidden)" stroke-width="1.5"/>
+          <text x="336" y="203" fill="var(--hidden)" font-size="11" text-anchor="middle" font-weight="700">model.py</text>
+          <text x="336" y="222" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">embeddings &rarr; pack &rarr; LSTM</text>
+          <text x="336" y="238" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">classifier &rarr; (B,) logits</text></a>
+          <line x1="428" y1="216" x2="462" y2="216" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#im-i)"/>
+          <a href="../src/taobao/train.py"><rect x="464" y="180" width="184" height="72" rx="8" fill="var(--cell-bg)" stroke="var(--cell)" stroke-width="1.5"/>
+          <text x="556" y="203" fill="var(--cell)" font-size="11" text-anchor="middle" font-weight="700">train.py</text>
+          <text x="556" y="222" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">BCE logits &middot; Adam</text>
+          <text x="556" y="238" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">validation AUC &middot; patience 3</text></a>
+          <line x1="648" y1="216" x2="682" y2="216" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#im-i)"/>
+          <rect x="684" y="180" width="172" height="72" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
+          <text x="770" y="203" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">best checkpoint</text>
+          <text x="770" y="222" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">model + config + history</text>
+          <text x="770" y="238" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">written atomically</text>
+
+          <path d="M770 252 L770 286 L556 286" fill="none" stroke="var(--hidden)" stroke-width="1.5" marker-end="url(#im-h)"/>
+          <rect x="354" y="270" width="202" height="62" rx="8" fill="var(--hidden-bg)" stroke="var(--hidden)"/>
+          <text x="455" y="294" fill="var(--hidden)" font-size="10.5" text-anchor="middle" font-weight="700">restore best weights</text>
+          <text x="455" y="314" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">then open + score test once</text>
+          <text x="24" y="350" fill="var(--ink-3)" font-size="9.5">No serving box appears because no API module exists yet.</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>This is the implementation boundary as it exists now. Click a colored module box to open its source file.</figcaption>
+  </figure>
 
   <h3>7.1 &nbsp;The raw material</h3>
   <p>The UserBehavior file has no header and five columns. Roughly 100 million rows, a million users, 25 November to 3 December 2017, China time. Here are twelve rows for one user, sorted by time:</p>
@@ -1932,34 +2009,49 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
   <p>Because <span class="m">max_len</span> is fixed at 50, all of this is pre-padded once into <span class="m">.npy</span> arrays rather than assembled per batch by a <span class="m">collate_fn</span>. At this length, per-batch padding costs more than it saves.</p>
 
   <h3>7.5 &nbsp;The forward pass, shape by shape</h3>
-  <pre class="wide"><code><span class="kw">class</span> <span class="fn">ConversionLSTM</span>(nn.Module):
-    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="fn">self</span>, n_cats=<span class="nu">6964</span>, cat_dim=<span class="nu">32</span>, beh_dim=<span class="nu">8</span>, hidden=<span class="nu">64</span>, p_drop=<span class="nu">0.2</span>):
+  <div class="code-head wide"><span class="actual">Actual implementation</span><a href="../src/taobao/model.py">src/taobao/model.py</a></div>
+  <pre class="wide"><code><span class="kw">from</span> torch.nn.utils.rnn <span class="kw">import</span> pack_padded_sequence
+
+<span class="kw">class</span> <span class="fn">ConversionLSTM</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(
+        <span class="fn">self</span>, num_categories, num_behaviors,
+        category_embedding_dim=<span class="nu">32</span>, behavior_embedding_dim=<span class="nu">4</span>, hidden_dim=<span class="nu">64</span>,
+    ):
         <span class="fn">super</span>().<span class="fn">__init__</span>()
-        <span class="fn">self</span>.cat_emb = nn.<span class="fn">Embedding</span>(n_cats, cat_dim, padding_idx=<span class="nu">0</span>)   <span class="cm"># 222,848 params</span>
-        <span class="fn">self</span>.beh_emb = nn.<span class="fn">Embedding</span>(<span class="nu">5</span>, beh_dim, padding_idx=<span class="nu">0</span>)         <span class="cm">#      40 params</span>
-        <span class="fn">self</span>.lstm    = nn.<span class="fn">LSTM</span>(cat_dim + beh_dim + <span class="nu">1</span>, hidden, batch_first=<span class="kw">True</span>)
-        <span class="fn">self</span>.drop    = nn.<span class="fn">Dropout</span>(p_drop)   <span class="cm"># explicit: nn.LSTM(dropout=) is a no-op at 1 layer</span>
-        <span class="fn">self</span>.head    = nn.<span class="fn">Linear</span>(hidden, <span class="nu">1</span>)
+        <span class="fn">self</span>.category_embedding = nn.<span class="fn">Embedding</span>(
+            num_categories, category_embedding_dim, padding_idx=<span class="nu">0</span>
+        )
+        <span class="fn">self</span>.behavior_embedding = nn.<span class="fn">Embedding</span>(
+            num_behaviors, behavior_embedding_dim, padding_idx=<span class="nu">0</span>
+        )
+        <span class="fn">self</span>.lstm = nn.<span class="fn">LSTM</span>(
+            category_embedding_dim + behavior_embedding_dim + <span class="nu">1</span>,
+            hidden_dim, batch_first=<span class="kw">True</span>,
+        )
+        <span class="fn">self</span>.classifier = nn.<span class="fn">Linear</span>(hidden_dim, <span class="nu">1</span>)
 
     <span class="kw">def</span> <span class="fn">forward</span>(<span class="fn">self</span>, cats, behs, hours, lengths):
-        c = <span class="fn">self</span>.<span class="fn">cat_emb</span>(cats)                     <span class="cm"># (B, 50)    -> (B, 50, 32)</span>
-        b = <span class="fn">self</span>.<span class="fn">beh_emb</span>(behs)                     <span class="cm"># (B, 50)    -> (B, 50,  8)</span>
-        h = hours.<span class="fn">unsqueeze</span>(<span class="nu">-1</span>)                   <span class="cm"># (B, 50)    -> (B, 50,  1)</span>
-        x = torch.<span class="fn">cat</span>([c, b, h], dim=<span class="nu">-1</span>)          <span class="cm">#            -> (B, 50, 41)</span>
-
-        out, _ = <span class="fn">self</span>.<span class="fn">lstm</span>(x)                    <span class="cm">#            -> (B, 50, 64)</span>
-        idx = (lengths - <span class="nu">1</span>).<span class="fn">to</span>(out.device)
-        rows = torch.<span class="fn">arange</span>(out.<span class="fn">size</span>(<span class="nu">0</span>), device=out.device)
-        last = out[rows, idx]
-                                                 <span class="cm">#            -> (B, 64)   last REAL step</span>
-        <span class="kw">return</span> <span class="fn">self</span>.<span class="fn">head</span>(<span class="fn">self</span>.<span class="fn">drop</span>(last)).<span class="fn">squeeze</span>(<span class="nu">-1</span>)   <span class="cm"># -> (B,)  raw logits</span></code></pre>
+        features = torch.<span class="fn">cat</span>(
+            (
+                <span class="fn">self</span>.<span class="fn">category_embedding</span>(cats),
+                <span class="fn">self</span>.<span class="fn">behavior_embedding</span>(behs),
+                hours.<span class="fn">unsqueeze</span>(<span class="nu">-1</span>),
+            ),
+            dim=<span class="nu">-1</span>,
+        )                                                   <span class="cm"># (B, 50, 37)</span>
+        packed = <span class="fn">pack_padded_sequence</span>(
+            features, lengths.<span class="fn">detach</span>().<span class="fn">cpu</span>(),
+            batch_first=<span class="kw">True</span>, enforce_sorted=<span class="kw">False</span>,
+        )
+        _, (hidden, _) = <span class="fn">self</span>.<span class="fn">lstm</span>(packed)      <span class="cm"># hidden: (1, B, 64)</span>
+        <span class="kw">return</span> <span class="fn">self</span>.<span class="fn">classifier</span>(hidden[<span class="nu">-1</span>]).<span class="fn">squeeze</span>(<span class="nu">-1</span>)  <span class="cm"># (B,) logits</span></code></pre>
 
   <p>Reading that as the story of one user:</p>
   <ol class="steps">
-    <li><span class="sh">Two lookups and a concatenation.</span> Each of the 12 real events becomes 32 numbers describing its category, 8 describing its behaviour type, and 1 for how long ago it happened &mdash; 41 numbers per event. Concatenated rather than added, because the three are unrelated kinds of information and there is no reason to force them into a shared space.</li>
-    <li><span class="sh">Fifty LSTM steps.</span> The cell reads event 1, updates <span class="m">C</span> and <span class="m">h</span>, reads event 2, and so on. After event 12 it keeps stepping through 38 padding positions &mdash; wasted work, discarded next line.</li>
-    <li><span class="sh">Read at step 12, not step 50.</span> <span class="m">lengths - 1</span> is 11 (zero-indexed), so <span class="m">out[row, 11]</span> is the hidden state produced immediately after the final real cart. That 64-number vector is the model&rsquo;s entire summary of this user.</li>
-    <li><span class="sh">Dropout, then one linear layer.</span> Dropout zeroes a random 20% of the 64 numbers during training only, which stops the head leaning too hard on any one of them. The linear layer collapses 64 numbers into 1 raw score.</li>
+    <li><span class="sh">Two lookups and a concatenation.</span> Each of the 12 real events becomes 32 numbers describing its category, 4 describing its behaviour type, and 1 for how long ago it happened &mdash; 37 numbers per event. Concatenated rather than added, because the three are unrelated kinds of information and there is no reason to force them into a shared space.</li>
+    <li><span class="sh">Packing removes padding from the recurrence.</span> <span class="m">lengths.detach().cpu()</span> tells PyTorch where every row ends. <span class="m">enforce_sorted=False</span> lets the DataLoader hand over any batch order; PyTorch sorts and restores it internally.</li>
+    <li><span class="sh">Twelve LSTM steps for this user, not fifty.</span> The packed kernel reads the 12 real events and never executes the 38 padded positions. The returned <span class="m">hidden[-1]</span> is therefore the state immediately after this user&rsquo;s final real cart, shape <span class="m">(B, 64)</span>.</li>
+    <li><span class="sh">One linear classifier.</span> <span class="m">Linear(64, 1)</span> collapses the user summary into one raw score. There is currently no dropout layer in <span class="m">ConversionLSTM</span>.</li>
     <li><span class="sh">Sigmoid, at the end.</span> <span class="m">p = &sigma;(z)</span> is the answer: the probability this user buys something on 1 December. During training the sigmoid lives inside <span class="m">BCEWithLogitsLoss</span> (see 0.8); at inference you apply it yourself.</li>
   </ol>
 
@@ -1967,7 +2059,7 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
 
   <div class="lab" id="lab-shp">
     <div class="lab-hd"><span class="lab-tag">Step by step</span><span class="lab-ttl">The forward pass, shape by shape</span></div>
-    <p class="lab-sub">One batch of 256 users goes in as four tensors, using the v1 sizes from the code above (embedding widths and dropout are tuned later; the shapes change, the story does not). Watch each line of <span class="m">forward</span> add an axis, change a depth or remove the step axis, until 50 events per user have become one number per user. Arrow keys work too.</p>
+    <p class="lab-sub">One batch of 256 users goes in as four tensors using the implemented defaults. Watch each operation add an axis, join the feature depth, remove padding from the recurrent work, and collapse each user to one logit. Arrow keys work too.</p>
     <div class="lab-body">
       <div class="stage-nav" id="shpNav"></div>
       <svg id="shpSvg" viewBox="0 0 880 300" role="img" aria-label="Step-by-step drawing of every tensor produced by the model's forward pass"></svg>
@@ -1997,19 +2089,56 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
   <p class="tcap">Identical on every count feature: 3 pv, 1 cart, 0 fav, 0 buy, 2 distinct categories, seq_len 4, 2h since the last event, 28h since the last cart-or-fav, 1 event in the last 24h, 0 carts and 0 buys in the last 24h. The difference is only <em class="lead">which category was carted relative to which was viewed after</em> &mdash; and B, still circling the carted item, is the better prospect.</p>
   <p>So the mechanism the LSTM has and the baseline does not is the ability to bind a behaviour to <em class="lead">what</em> it was about and carry that binding forward &mdash; the &ldquo;keep a slot open for this category until something closes it&rdquo; behaviour you watched the forget gate perform in 4.8.</p>
   <div class="note"><span class="lbl">The honest frame, and what the ablation really controls for</span><p>The pair above is a <em class="lead">hypothesis about where lift could come from</em>, not a claim about what the trained model does. The mean-pooling ablation is what turns it into evidence &mdash; but be careful about how much it proves, because this is where the argument is easiest to overclaim.</p>
-  <p>Mean pooling shares the embeddings, so those are controlled for. It does <em class="lead">not</em> share capacity. Pooling <span class="m">(B, 50, 41)</span> gives a 41-number vector, and a <span class="m">Linear(41, 1)</span> head on it is 42 parameters; the LSTM path is 27,457. So mean pooling removes order <em class="lead">and</em> nearly all the non-embedding capacity at the same time, and a gap between them is an <em class="lead">upper bound</em> on what order contributes, not a measurement of it. To actually isolate order you would pool and then put a comparable-capacity MLP on the pooled vector, so only the ordering is gone.</p>
+  <p>Mean pooling would share the embeddings, so those would be controlled for. It would <em class="lead">not</em> share capacity. Pooling <span class="m">(B, 50, 37)</span> gives a 37-number vector, and a <span class="m">Linear(37, 1)</span> head on it is 38 parameters; the implemented LSTM-plus-classifier path is 26,433. So that planned ablation would remove order <em class="lead">and</em> nearly all the non-embedding capacity at the same time, and a gap between them would be an <em class="lead">upper bound</em> on what order contributes, not a measurement of it. To actually isolate order you would pool and then put a comparable-capacity MLP on the pooled vector, so only the ordering is gone.</p>
   <p>And if the LSTM ties mean pooling and mean pooling ties logistic regression, the honest conclusion is that this feature set and this dataset have a ceiling &mdash; not that the architecture needs more tuning.</p></div>
 
   <h3>7.7 &nbsp;Training, in the four steps from 0.8</h3>
-  <pre><code><span class="kw">for</span> epoch <span class="kw">in</span> <span class="fn">range</span>(max_epochs):
+  <div class="code-head"><span class="actual">Actual implementation</span><a href="../src/taobao/train.py">train_one_epoch() · src/taobao/train.py</a></div>
+  <pre><code><span class="kw">def</span> <span class="fn">train_one_epoch</span>(model, data_loader, optimizer, criterion, device):
     model.<span class="fn">train</span>()
-    <span class="kw">for</span> cats, behs, hours, lengths, y <span class="kw">in</span> train_batches:
-        logits = <span class="fn">model</span>(cats, behs, hours, lengths)   <span class="cm"># 1. predict</span>
-        loss   = <span class="fn">criterion</span>(logits, y)                  <span class="cm"># 2. score  (BCEWithLogitsLoss)</span>
-        opt.<span class="fn">zero_grad</span>()
-        loss.<span class="fn">backward</span>()                              <span class="cm"># 3. BPTT back through the real steps</span>
-        opt.<span class="fn">step</span>()                                   <span class="cm"># 4. nudge every weight downhill</span>
-    val_auc = <span class="fn">evaluate</span>(model, val_batches)          <span class="cm"># early stopping watches this</span></code></pre>
+    loss_sum = <span class="nu">0.0</span>
+    n_examples = <span class="nu">0</span>
+    <span class="kw">for</span> cpu_batch <span class="kw">in</span> data_loader:
+        batch = <span class="fn">_move_batch</span>(cpu_batch, device)
+        optimizer.<span class="fn">zero_grad</span>(set_to_none=<span class="kw">True</span>)
+        logits = <span class="fn">model</span>(
+            batch[<span class="st">"cats"</span>], batch[<span class="st">"behs"</span>], batch[<span class="st">"hours"</span>], batch[<span class="st">"lengths"</span>]
+        )
+        loss = <span class="fn">criterion</span>(logits, batch[<span class="st">"labels"</span>])
+        loss.<span class="fn">backward</span>()
+        optimizer.<span class="fn">step</span>()
+
+        batch_size = batch[<span class="st">"labels"</span>].<span class="fn">numel</span>()
+        loss_sum += loss.<span class="fn">item</span>() * batch_size
+        n_examples += batch_size
+    <span class="kw">return</span> loss_sum / n_examples</code></pre>
+
+  <div class="code-head"><span class="actual">Actual implementation</span><a href="../src/taobao/train.py">model selection + test-once boundary</a></div>
+  <pre><code><span class="kw">for</span> epoch <span class="kw">in</span> <span class="fn">range</span>(<span class="nu">1</span>, config.max_epochs + <span class="nu">1</span>):
+    train_loss = <span class="fn">train_one_epoch</span>(model, train_loader, optimizer, criterion, device)
+    validation = <span class="fn">evaluate</span>(model, validation_loader, device)
+    <span class="cm"># ...record EpochMetrics in history...</span>
+
+    improved = validation.auc &gt; best_validation.auc
+    <span class="kw">if</span> improved:
+        best_epoch = epoch
+        best_validation = validation
+        epochs_without_improvement = <span class="nu">0</span>
+        <span class="fn">save_checkpoint</span>(
+            config.checkpoint_path, model, optimizer, model_config,
+            config, vocab_sizes, history, validation, device,
+        )
+    <span class="kw">else</span>:
+        epochs_without_improvement += <span class="nu">1</span>
+    <span class="kw">if</span> epochs_without_improvement &gt;= config.patience:
+        <span class="kw">break</span>
+
+<span class="cm"># Test artifacts are deliberately unopened until model selection is over.</span>
+checkpoint = <span class="fn">load_checkpoint</span>(config.checkpoint_path, device)
+model.<span class="fn">load_state_dict</span>(checkpoint[<span class="st">"model_state_dict"</span>])
+test_dataset = <span class="fn">TensorSplitDataset</span>(<span class="st">"test"</span>, config.tensors_dir)
+test_loader = <span class="fn">make_data_loader</span>(test_dataset, ..., shuffle=<span class="kw">False</span>, ...)
+test_metrics = <span class="fn">evaluate</span>(model, test_loader, device)</code></pre>
 
   <figure id="fig-loop">
     <div class="figbox">
@@ -2054,8 +2183,8 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
           <!-- outer loop -->
           <text x="30" y="224" fill="var(--ink-3)" font-size="10.5" letter-spacing="1.4">OUTER LOOP &mdash; ONCE PER EPOCH</text>
           <rect x="30" y="236" width="196" height="48" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
-          <text x="128" y="256" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">eval() + no_grad()</text>
-          <text x="128" y="272" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">dropout off; no graph built</text>
+          <text x="128" y="256" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">eval() + inference_mode()</text>
+          <text x="128" y="272" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">evaluation mode; no graph built</text>
           <line x1="226" y1="260" x2="248" y2="260" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#fl-i)"/>
           <rect x="250" y="236" width="196" height="48" rx="8" fill="var(--hidden-bg)" stroke="var(--hidden)"/>
           <text x="348" y="256" fill="var(--hidden)" font-size="10.5" text-anchor="middle" font-weight="700">evaluate(model, val)</text>
@@ -2076,19 +2205,19 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
         </g>
       </svg>
     </div>
-    <figcaption>The nine lines of code above, as the two loops they are. The inner loop is 0.8&rsquo;s four steps with a batch instead of one example; the outer loop is where early stopping and the train/validation discipline from 0.10 live.</figcaption>
+    <figcaption>The implemented control flow as two loops. The inner loop is 0.8&rsquo;s four steps with a batch instead of one example; the outer loop owns validation, early stopping and checkpoint selection.</figcaption>
   </figure>
   <ol class="steps">
-    <li><span class="sh"><span class="m">loss.backward()</span> is Part 3 happening.</span> It walks the unrolled chain backwards, multiplying local derivatives, and lands a gradient on all ~250,000 parameters. Worth being precise about how far it walks: because the loss is taken from <span class="m">out[row, 11]</span>, the padding steps 12 to 49 are not ancestors of it and receive <em class="lead">exactly</em> zero gradient. They were computed on the way forward and wasted; they are skipped on the way back. The chain that matters is the 12 real steps &mdash; and everything in Parts 3 and 5 is about what that walk does to the numbers along it.</li>
+    <li><span class="sh"><span class="m">loss.backward()</span> is Part 3 happening.</span> It walks the packed recurrent chain backwards, multiplying local derivatives, and lands gradients on the model&rsquo;s ~249,000 parameters. For the example above the chain contains exactly 12 LSTM steps: packing removed positions 12 to 49 before the recurrence, so those pads are neither computed nor present in the backward graph.</li>
     <li><span class="sh"><span class="m">zero_grad()</span> before <span class="m">backward()</span>, always.</span> PyTorch accumulates gradients into <span class="m">.grad</span> rather than replacing them. Forget this and each step uses the sum of every gradient so far, which trains something, just not your model.</li>
-    <li><span class="sh"><span class="m">model.train()</span> and <span class="m">model.eval()</span> are what make dropout &ldquo;training only&rdquo;.</span> They are a switch on the module, not a computation. In <span class="m">train()</span> mode dropout zeroes its 20%; in <span class="m">eval()</span> mode it passes everything through untouched, so evaluation is deterministic. Forgetting <span class="m">model.eval()</span> before scoring is a classic bug: your validation metric becomes stochastic and differs from the intended inference-time metric, and nothing necessarily warns you.</li>
+    <li><span class="sh">Evaluation changes mode and disables autograd.</span> <span class="m">evaluate()</span> remembers the incoming mode, calls <span class="m">model.eval()</span>, runs under <span class="m">torch.inference_mode()</span>, and restores training mode afterward. The current model has no dropout or batch normalisation, but this boundary is already correct if either is added later, and it avoids building graphs that evaluation will never backpropagate through.</li>
     <li><span class="sh">Early stopping follows the declared objective.</span> This plan uses validation AUC because ranking is the primary comparison. A uniform recalibration cannot change AUC, but a real weekday-to-weekend population shift can change ranking too, so validation AUC still has to be measured. Because the endpoint returns a probability, log loss and calibration should also be reported; weekend miscalibration is operationally real, not merely a nuisance in the metric.</li>
     <li><span class="sh">No <span class="m">pos_weight</span> for probability estimation.</span> With unweighted binary cross-entropy, the target is the observed purchase probability. Positive-class weighting changes that training target and usually requires calibration afterward. It can also change AUC because retraining may change the ordering; rank invariance applies to a fixed set of scores under a monotonic transform, not to a newly trained model.</li>
     <li><span class="sh">Test is read once.</span> Tuning happens on validation. The test cutoff of 3 December is scored when the results are final, and that number goes in the table whether or not it is flattering.</li>
   </ol>
 
-  <h3>7.8 &nbsp;The same path at serving time</h3>
-  <p>The endpoint takes raw events as JSON and returns a probability. The only thing that matters here is that it must reuse the <em class="lead">exact</em> encoding path from training: same sort order, same last-50 truncation, same vocabulary and rare mapping, same behaviour mapping, same hour clipping and log scaling. Any divergence between the training encoder and the serving encoder is a bug that produces no error and no crash &mdash; only a model that quietly performs worse in production than it did offline. The correctness test is concrete: <span class="m">curl</span> the endpoint with a user from the test set and check that the probability matches the offline score for that same user.</p>
+  <h3>7.8 &nbsp;Next boundary: serving is planned, not implemented</h3>
+  <p>There is no FastAPI module or prediction endpoint in the repository yet. The diagram below is therefore a <em class="lead">future implementation constraint</em>, not a description of working code. When serving is added, it must reuse the exact encoding rules from training: same sort order, last-50 truncation, vocabulary and rare mapping, behaviour mapping, hour clipping and log scaling. The acceptance test should send a test-set user through the future endpoint and require the returned probability to match the offline score for that same user and cutoff.</p>
 
   <figure id="fig-serve">
     <div class="figbox">
@@ -2100,7 +2229,7 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
         <g font-family="'JetBrains Mono',monospace">
           <!-- lane labels -->
           <text x="30" y="24" fill="var(--ink-3)" font-size="10.5" letter-spacing="1.4">OFFLINE &mdash; TRAIN, THEN SCORE VALIDATION AND TEST, 256 ROWS PER BATCH</text>
-          <text x="30" y="178" fill="var(--ink-3)" font-size="10.5" letter-spacing="1.4">SERVING &mdash; FASTAPI, B = 1</text>
+          <text x="30" y="178" fill="var(--forget)" font-size="10.5" letter-spacing="1.4">PLANNED SERVING &mdash; FASTAPI, B = 1 &mdash; NOT YET IN THE REPOSITORY</text>
 
           <!-- training lane -->
           <rect x="30" y="40" width="132" height="54" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
@@ -2111,15 +2240,15 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
 
           <!-- serving lane -->
           <rect x="30" y="194" width="132" height="54" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
-          <text x="96" y="216" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">POST /predict</text>
+          <text x="96" y="216" fill="var(--forget)" font-size="10.5" text-anchor="middle" font-weight="700">future POST /predict</text>
           <text x="96" y="234" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">JSON: raw events</text>
           <line x1="162" y1="221" x2="246" y2="221" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#fs-i)"/>
           <text x="204" y="212" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">cutoff = now</text>
 
           <!-- shared encoder (tall, spanning both lanes) -->
           <rect x="248" y="40" width="292" height="208" rx="10" fill="var(--cell-bg)" stroke="var(--cell)" stroke-width="2"/>
-          <text x="394" y="64" fill="var(--cell)" font-size="10" letter-spacing="1.3" text-anchor="middle">ONE ENCODE FUNCTION</text>
-          <text x="394" y="82" fill="var(--cell)" font-size="10.5" text-anchor="middle" font-weight="700">shared by both lanes</text>
+          <text x="394" y="64" fill="var(--cell)" font-size="10" letter-spacing="1.3" text-anchor="middle">REQUIRED SHARED ENCODING RULES</text>
+          <text x="394" y="82" fill="var(--cell)" font-size="10.5" text-anchor="middle" font-weight="700">serving must match the offline path</text>
           <text x="264" y="110" fill="var(--cell)" font-size="10">1. sort by timestamp</text>
           <text x="264" y="128" fill="var(--cell)" font-size="10">2. keep the last 50 before the cutoff</text>
           <text x="264" y="146" fill="var(--cell)" font-size="10">3. category &rarr; vocab index, or 1 (rare)</text>
@@ -2161,9 +2290,9 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
         </g>
       </svg>
     </div>
-    <figcaption>The only architectural decision in serving: the encoder is one function imported by both the training script and the FastAPI app, never two copies. The correctness test in the text &mdash; curl a test-set user and compare with the offline score &mdash; is the dotted line on the right.</figcaption>
+    <figcaption>A blueprint for the unimplemented serving phase. The dotted line is the future parity test; it is not claiming that an API or shared serving encoder exists today.</figcaption>
   </figure>
-  <p>Batch size at serving is 1, sequence length at most 50, hidden size 64. That is around 27,000 multiply-accumulates per step and 50 steps &mdash; trivially fast on a CPU, which is why p50 and p95 latency belong in the README as evidence rather than as a challenge.</p>
+  <p>With batch size 1, sequence length at most 50 and hidden size 64, CPU serving should be lightweight, but that remains a hypothesis until the endpoint exists and p50/p95 latency is measured.</p>
 </section>
 
 <hr class="div">
@@ -2212,7 +2341,7 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
   <details class="qa"><summary>An LSTM has 4&times; the parameters of an RNN at the same hidden size. How do you know the gain is from gating and not capacity?</summary>
   <div class="qa-body">
     <p>Fair challenge, and there are two ways to answer it. The clean one is to match parameter counts &mdash; compare against an RNN with a larger hidden size that lands near 27,000 recurrent parameters instead of 6,848.</p>
-    <p>The cheaper one is the ablation already in the plan: masked mean pooling shares the embeddings but has no recurrence. I would be careful not to oversell it, though, and saying so is the better answer. Pooling drops to 41 dimensions with a 42-parameter head against the LSTM&rsquo;s 27,457, so it removes order and capacity together &mdash; the gap is an upper bound on what order contributes rather than a clean measurement. Isolating order properly means pooling and then adding a comparable-capacity MLP head. Either way it answers a question worth more than the original: not &ldquo;is gating better than no gating&rdquo; but &ldquo;does order carry signal in this dataset at all&rdquo;.</p>
+    <p>The cheaper planned ablation is masked mean pooling: it shares the embeddings but has no recurrence. I would be careful not to oversell it, though, and saying so is the better answer. Pooling drops to 37 dimensions with a 38-parameter head against the LSTM&rsquo;s 26,433, so it removes order and capacity together &mdash; the gap is an upper bound on what order contributes rather than a clean measurement. Isolating order properly means pooling and then adding a comparable-capacity MLP head. Either way it answers a question worth more than the original: not &ldquo;is gating better than no gating&rdquo; but &ldquo;does order carry signal in this dataset at all&rdquo;.</p>
   </div></details>
 
   <details class="qa"><summary>Your positives are 14.7%. Why no <span class="m">pos_weight</span> or resampling?</summary>
@@ -2290,13 +2419,13 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
     <div><dfn>packing</dfn>Storing a padded batch as only its real steps, time-major, with a count of live rows per timestep, so the layer stops each row at its own length.</div>
     <div><dfn>padding</dfn>Filling short sequences with a reserved value so a batch forms a rectangle. Index 0 here, by convention.</div>
     <div><dfn>padding_idx</dfn>An <span class="m">nn.Embedding</span> argument pinning one row to zero and excluding it from gradient updates.</div>
-    <div><dfn>parameter</dfn>A number the network learns &mdash; a weight, a bias or an embedding row. This project has about 250,000 of them.</div>
+    <div><dfn>parameter</dfn>A number the network learns &mdash; a weight, a bias or an embedding row. With the recorded 6,964-category vocabulary and current defaults, this model has 249,301 of them.</div>
     <div><dfn>pooling</dfn>Collapsing a sequence of vectors into one by averaging or taking a maximum. Order-free, so it bounds what recurrence contributes &mdash; though it removes capacity along with order, so the bound is an upper one.</div>
     <div><dfn>recurrent</dfn>Feeding a function&rsquo;s output back in as one of its own inputs at the next step, so one set of weights handles a sequence of any length.</div>
     <div><dfn>RNN</dfn>Recurrent neural network. In its plain form, <span class="m">h<sub>t</sub> = tanh(W<sub>x</sub>x<sub>t</sub> + W<sub>h</sub>h<sub>t&minus;1</sub> + b)</span>.</div>
     <div><dfn>scalar / vector / matrix / tensor</dfn>One number; an ordered list; a rectangular grid; a block with any number of axes.</div>
     <div><dfn>seq_len</dfn>How many real (unpadded) events a sequence contains. 3 to 50 in this project.</div>
-    <div><dfn>shape</dfn>The size of a tensor along each axis, as a tuple. <span class="m">(256, 50, 41)</span> is 256 users, 50 timesteps, 41 features.</div>
+    <div><dfn>shape</dfn>The size of a tensor along each axis, as a tuple. <span class="m">(256, 50, 37)</span> is 256 users, 50 timesteps, 37 features.</div>
     <div><dfn>sigmoid &nbsp;&sigma;</dfn><span class="m">1/(1+e<sup>&minus;z</sup>)</span>. Squashes any number into (0, 1). Used for gates and for turning a logit into a probability.</div>
     <div><dfn>tanh</dfn>Squashes any number into (&minus;1, 1), centred at 0. Used for values rather than fractions. Its derivative is <span class="m">1 &minus; tanh(z)&sup2;</span>.</div>
     <div><dfn>timestep</dfn>A position in a sequence, counted from the oldest event. Not clock time.</div>
@@ -2907,7 +3036,7 @@ function staged(prefix, STAGES, opts){
   function s7(){
     const LN = [
       {x:30, t:"cats", a:"(B, 50)  int64", m:"nn.Embedding(6964, 32)", o:"(B, 50, 32)", c:"var(--cell)",  k:"c"},
-      {x:310,t:"behs", a:"(B, 50)  int64", m:"nn.Embedding(5, 8)",     o:"(B, 50,  8)", c:"var(--input)", k:"n"},
+      {x:310,t:"behs", a:"(B, 50)  int64", m:"nn.Embedding(5, 4)",     o:"(B, 50,  4)", c:"var(--input)", k:"n"},
       {x:590,t:"hours",a:"(B, 50)  float32", m:"unsqueeze(-1)",        o:"(B, 50,  1)", c:"var(--cand)",  k:"d"}
     ];
     let o = HD(30,24,"WHAT ACTUALLY FLOWS THROUGH THE MODEL");
@@ -2925,13 +3054,13 @@ function staged(prefix, STAGES, opts){
     [[160,350,"var(--cell)","c"],[440,750,"var(--input)","n"],[720,840,"var(--cand)","d"]].forEach(a=>{
       o += '<path d="M'+a[0]+' 210 L'+a[0]+' 228 L'+a[1]+' 228 L'+a[1]+' 244" fill="none" stroke="'+a[2]+'" stroke-width="1.4" marker-end="url(#emb-'+a[3]+')"/>';
     });
-    o += B(30,250,640,42,{f:"var(--cell-bg)",st:"var(--cell)",sw:1.4});
-    o += B(670,250,160,42,{f:"var(--input-bg)",st:"var(--input)",sw:1.4});
+    o += B(30,250,692,42,{f:"var(--cell-bg)",st:"var(--cell)",sw:1.4});
+    o += B(722,250,108,42,{f:"var(--input-bg)",st:"var(--input)",sw:1.4});
     o += B(830,250,20,42,{r:4,f:"var(--cand-bg)",st:"var(--cand)",sw:1.4});
     o += T(350,276,"32 numbers from the category table",{s:12,f:"var(--cell)",a:"middle"});
     o += T(750,276,"8 behaviour",{s:11.5,f:"var(--input)",a:"middle"});
     o += T(850,308,"1 hour",{s:10,f:"var(--cand)",a:"end"});
-    o += T(30,334,"x = torch.cat([c, b, h], dim=-1)    →    (B, 50, 41)    →    nn.LSTM(41, 64)",{s:13,f:"var(--ink-2)"});
+    o += T(30,334,"features = torch.cat((c, b, h), dim=-1)    →    (B, 50, 37)    →    nn.LSTM(37, 64)",{s:13,f:"var(--ink-2)"});
     return o;
   }
 
@@ -2961,9 +3090,9 @@ function staged(prefix, STAGES, opts){
      ttl:"Nobody fills the table in",
      cap:"All 222,848 numbers start as random draws. They are ordinary weights: the loss flows back into rows used by the batch, the optimiser nudges them, and they move only when doing so improves the objective. Categories used in similar predictive contexts may drift toward similar regions; that is learned behaviour, not a guarantee. A category seen four times can receive updates, but the estimate will usually be too noisy to justify its own row, which is the argument for pooling rare categories into row 1."},
     {tab:"7 · in the model", vb:"0 0 880 352", fn:s7,
-     alt:"Three input lanes -- categories, behaviours and hours -- becoming a single 41-number vector per event.",
+     alt:"Three input lanes -- categories, behaviours and hours -- becoming a single 37-number vector per event.",
      ttl:"Where the 32 numbers end up",
-     cap:"One lookup per event, done for all 50 events of all 256 users in a batch at once: <span class=\"m\">(B, 50)</span> integers in, <span class=\"m\">(B, 50, 32)</span> floats out. Behaviours get their own far smaller table. The age of the event needs no table at all, because it is already a quantity rather than a name &mdash; that is the distinction this whole section turns on. Glue the three together and you have the 41 numbers per event that the rest of this page calls <span class=\"m\">x<sub>t</sub></span>. Part 7 walks a real user through end to end."}
+     cap:"One lookup per event, done for all 50 events of all 256 users in a batch at once: <span class=\"m\">(B, 50)</span> integers in, <span class=\"m\">(B, 50, 32)</span> floats out. Behaviours get their own 4-column table. The age of the event needs no table at all, because it is already a quantity rather than a name &mdash; that is the distinction this whole section turns on. Glue the three together and you have the 37 numbers per event that the rest of this page calls <span class=\"m\">x<sub>t</sub></span>. Part 7 walks a real user through end to end."}
   ];
 
   nav.innerHTML = STAGES.map((s,i)=>'<button class="btn" type="button" data-es="'+i+'" aria-pressed="'+(i===0)+'">'+s.tab+'</button>').join("");
@@ -3337,7 +3466,7 @@ function staged(prefix, STAGES, opts){
     o += T(330,125,"this event, as one number",{s:9.5,a:"middle",f:"var(--ink-3)"});
     o += T(270,150,"strengths:",{s:10,f:"var(--ink-3)"});
     EVS.forEach((e,i) => { o += T(340+i*74,150,e+" "+f2(STR[e]),{s:10,f:e===ev ? colour(e) : "var(--ink-3)",w:e===ev ? "700" : null}); });
-    o += cornerNote(600,52,250,88,["h is 64 numbers, x is 41.","here: 2 and 1, so the whole","step fits on one screen."]);
+    o += cornerNote(600,52,250,88,["h is 64 numbers, x is 37.","here: 2 and 1, so the whole","step fits on one screen."]);
     o += HD(30,188,"WHERE hₜ₋₁ CAME FROM");
     PREV.forEach((e,i) => {
       const x = 60 + i*70;
@@ -3405,7 +3534,7 @@ function staged(prefix, STAGES, opts){
     o += T(60,204,l1,{s:12.5,f:"var(--ink)"}) + T(60,226,l2,{s:12.5,f:"var(--ink)"});
     o += T(60,262,"zₜ is a plain weighted sum and can be any size. Nothing so far has squashed anything — that is the next stage.",{s:10.5,f:"var(--ink-3)"});
     o += T(60,278,"Adding the two products is the same as one weighted sum over xₜ and hₜ₋₁ glued end to end:",{s:10.5,f:"var(--ink-3)"});
-    o += T(60,293,"in the model, 64 such rows of 41 + 64 = 105 weights each.",{s:10.5,f:"var(--ink-3)"});
+    o += T(60,293,"in the model, 64 such rows of 37 + 64 = 101 weights each.",{s:10.5,f:"var(--ink-3)"});
     return o;
   }
 
@@ -3480,7 +3609,7 @@ function staged(prefix, STAGES, opts){
     {tab:"1 · two inputs", vb:"0 0 880 282", fn:s1, ctl,
      alt:"The previous two-number hidden state and the current event's single input number, with the five earlier events that produced the hidden state.",
      ttl:"Two things go in: the previous hidden state and the current event",
-     cap:"The formula in 2.2 has exactly two inputs that change from step to step. <span class=\"m\">h<sub>t&minus;1</sub></span> is the hidden state computed after the previous event &mdash; here the two numbers the 2.5 demo reaches after reading <span class=\"m\">pv, pv, fav, pv, pv</span> from <span class=\"m\">h<sub>0</sub> = [0, 0]</span>. It was computed by running the recurrence, not loaded from the dataset. <span class=\"m\">x<sub>t</sub></span> is the event being read now, as one number saying how strong the behaviour is. In the real model those are 64 and 41 numbers; nothing else about the step is different. Switch the event with the buttons and every later stage recomputes."},
+     cap:"The formula in 2.2 has exactly two inputs that change from step to step. <span class=\"m\">h<sub>t&minus;1</sub></span> is the hidden state computed after the previous event &mdash; here the two numbers the 2.5 demo reaches after reading <span class=\"m\">pv, pv, fav, pv, pv</span> from <span class=\"m\">h<sub>0</sub> = [0, 0]</span>. It was computed by running the recurrence, not loaded from the dataset. <span class=\"m\">x<sub>t</sub></span> is the event being read now, as one number saying how strong the behaviour is. In the real model those are 64 and 37 numbers; nothing else about the step is different. Switch the event with the buttons and every later stage recomputes."},
     {tab:"2 · two matrices", vb:"0 0 880 320", fn:s2, ctl,
      alt:"The weight matrices Wx and Wh drawn as small grids, each multiplied by its input, with the products written out as arithmetic.",
      ttl:"Two matrix multiplies, one per input",
@@ -3873,7 +4002,7 @@ function staged(prefix, STAGES, opts){
   function s1(){
     const r = now(), x = r.x;
     let o = HD(30,24,"WHAT ARRIVES AT STEP t  —  THE STATE FROM STEP t−1, AND THE NEW EVENT");
-    o += T(850,24,"in the model: 64 + 64 + 41 numbers",{s:10,a:"end",f:"var(--ink-3)"});
+    o += T(850,24,"in the model: 64 + 64 + 37 numbers",{s:10,a:"end",f:"var(--ink-3)"});
     o += vrow(40, 68, PREV.C, {bg:"var(--cell-bg)", st:CCOL, f:CCOL, lbl:"C(t−1)  cell state", lbls:["slot 1","slot 2","slot 3"]});
     o += T(40,138,"not read by any gate (4.5)",{s:10,f:"var(--ink-3)"});
     o += vrow(300, 68, PREV.h, {bg:"var(--hidden-bg)", st:HCOL, f:HCOL, lbl:"h(t−1)  hidden state", lbls:["slot 1","slot 2","slot 3"]});
@@ -4031,7 +4160,7 @@ function staged(prefix, STAGES, opts){
     {tab:"1 · arrives", vb:"0 0 880 250", fn:s1, ctl,
      alt:"The previous cell state, previous hidden state and current event, with the hidden state and event concatenated into one five-number strip.",
      ttl:"Three things arrive; only two of them go into the gates",
-     cap:"The cell state <span class=\"m\">C(t−1)</span> waits on the conveyor belt — it will be scaled and added to in stage 4, but no gate reads it (4.5). The hidden state <span class=\"m\">h(t−1)</span> and the event <span class=\"m\">x(t)</span> are glued end to end into one strip of five numbers, 4.2’s concatenation, and that strip is the sole input to all four weighted sums that follow. In the model the strip is 64 + 41 = 105 numbers and every gate matrix has 105 columns; here it is 5 and 5, and the arithmetic is otherwise identical. Pick a different event below and every stage recomputes."},
+     cap:"The cell state <span class=\"m\">C(t−1)</span> waits on the conveyor belt — it will be scaled and added to in stage 4, but no gate reads it (4.5). The hidden state <span class=\"m\">h(t−1)</span> and the event <span class=\"m\">x(t)</span> are glued end to end into one strip of five numbers, 4.2’s concatenation, and that strip is the sole input to all four weighted sums that follow. In the model the strip is 64 + 37 = 101 numbers and every gate matrix has 101 columns; here it is 5 and 5, and the arithmetic is otherwise identical. Pick a different event below and every stage recomputes."},
     {tab:"2 · forget gate", vb:"0 0 880 370", fn:s2, ctl,
      alt:"The three by five forget-gate matrix multiplied by the strip, plus the bias, through a sigmoid, giving three keep fractions, with each row's sum written out.",
      ttl:"One row of W_f per slot, one sigmoid each: three keep-rates",
@@ -4429,7 +4558,7 @@ function staged(prefix, STAGES, opts){
   /* ---- 2 : x is zero ---- */
   function s2(){
     let o = HD(30,24,"PAD STEP t4  —  THE EMBEDDING LOOKUP FOR INDEX 0");
-    o += T(850,24,"in the model: 41 zeros",{s:10,a:"end",f:"var(--ink-3)"});
+    o += T(850,24,"in the model: 37 zeros",{s:10,a:"end",f:"var(--ink-3)"});
     o += row(44, {hi:LEN, dim:true});
     const tx = 40 + LEN*80 + 36;
     o += L(tx,92,tx,132,{c:CCOL,w:1.4,m:"c",p:"ps"});
@@ -4467,7 +4596,7 @@ function staged(prefix, STAGES, opts){
       o += T(cx+32,78,sn(v),{s:12.5,a:"middle",f: isH ? HCOL : XCOL, w: isH ? "700" : null});
     });
     o += T(396,72,"the summary of the user on the left, the pad step's zeros on the right",{s:10.5,f:"var(--ink-2)"});
-    o += T(396,88,"in the model: 64 numbers that are not zero, then 41 that are",{s:10,f:"var(--ink-3)"});
+    o += T(396,88,"in the model: 64 numbers that are not zero, then 37 that are",{s:10,f:"var(--ink-3)"});
     /* the six terms of slot 1's forget sum, each in its own box */
     const terms = WF[0].map((w,j) => ({txt: pw(w)+"×"+nc(strip[j]), h: j<3, x: j>=3})).concat([{txt: wt(BF[0]), bias:true}]);
     let x = 118; const y = 118, bh = 30;
@@ -4574,7 +4703,7 @@ function staged(prefix, STAGES, opts){
     {tab:"2 · x is zero", vb:"0 0 880 300", fn:s2,
      alt:"The pad cell at t4 highlighted, an arrow into a five-row embedding table with row 0 all zeros highlighted, and the resulting zero input vector.",
      ttl:"The embedding lookup for index 0 returns zeros, exactly as promised",
-     cap:"Step t4 is index 0. With <span class=\"m\">padding_idx=0</span> the embedding table’s row 0 is all zeros and receives no gradient, so the lookup returns <span class=\"m\">[0.00, 0.00]</span> and <span class=\"m\">x(4)</span> is the zero vector — in the model, 41 zeros. So far the intuition holds: through <span class=\"m\">x</span>, the padding contributes nothing. The trouble is that <span class=\"m\">x</span> is only the right-hand half of the strip. The left-hand half is <span class=\"m\">h(3)</span>, and <span class=\"m\">h(3)</span> is not zero — it is the summary the cart just produced, and every gate reads it."},
+     cap:"Step t4 is index 0. With <span class=\"m\">padding_idx=0</span> the embedding table’s row 0 is all zeros and receives no gradient, so the lookup returns <span class=\"m\">[0.00, 0.00]</span> and <span class=\"m\">x(4)</span> is the zero vector — in the model, 37 zeros. So far the intuition holds: through <span class=\"m\">x</span>, the padding contributes nothing. The trouble is that <span class=\"m\">x</span> is only the right-hand half of the strip. The left-hand half is <span class=\"m\">h(3)</span>, and <span class=\"m\">h(3)</span> is not zero — it is the summary the cart just produced, and every gate reads it."},
     {tab:"3 · the gates are not", vb:"0 0 880 388", fn:s3,
      alt:"Slot one's forget-gate sum with the two x terms struck through as zero and the three h terms and the bias surviving, giving a forget value below one, plus all four gate vectors at t4.",
      ttl:"The x terms vanish; the h terms and the bias do not",
@@ -4762,7 +4891,7 @@ function staged(prefix, STAGES, opts){
     o += faces(xx, gy, W, H, xd, "var(--xin)", "var(--xin-bg)");
     for(let r=0;r<NB;r++) for(let t=0;t<TT;t++) o += B(xx + t*cw, gy + r*ch, cw-4, ch-4,{f:"var(--xin-bg)",st:"var(--xin)",sw:1,r:3});
     o += T(xx + W + xd + 8, gy - xd + 4, "F deep",{s:10.5,f:"var(--xin)",w:"700"});
-    o += T(xx + W + xd + 8, gy - xd + 20, "41 in the model",{s:10,f:"var(--ink-3)"});
+    o += T(xx + W + xd + 8, gy - xd + 20, "37 in the model",{s:10,f:"var(--ink-3)"});
     o += shape(xx, gy + H + 24, "(4, 8, F)");
     o += T(xx, gy + H + 42, "F numbers behind every cell",{s:10.5,f:"var(--ink-3)"});
     /* result */
@@ -4832,7 +4961,7 @@ function staged(prefix, STAGES, opts){
     {tab:"5 · unsqueeze(-1)", vb:"0 0 880 348", fn:s5,
      alt:"The mask grid drawn with a one-deep tag, shape (4, 8, 1), multiplied against the feature tensor drawn with depth F, shape (4, 8, F).",
      ttl:"A trailing axis so the mask can meet x",
-     cap:"<span class=\"m\">x</span> is three-dimensional, <span class=\"m\">(4, 8, F)</span>, with <span class=\"m\">F = 41</span> features per event in the model. A <span class=\"m\">(4, 8)</span> mask cannot multiply it: the trailing axes do not line up. <span class=\"m\">unsqueeze(-1)</span> adds a size-1 axis at the end, making <span class=\"m\">(4, 8, 1)</span>, and now the broadcasting rule from stage 3 fires a second time &mdash; the 1 is repeated across all <span class=\"m\">F</span> features. The multiply leaves every number at a real event untouched and turns every number at a pad position into 0, all 41 of them, with no Python loop over rows."},
+     cap:"<span class=\"m\">x</span> is three-dimensional, <span class=\"m\">(4, 8, F)</span>, with <span class=\"m\">F = 37</span> features per event in the implemented model. A <span class=\"m\">(4, 8)</span> mask cannot multiply it: the trailing axes do not line up. <span class=\"m\">unsqueeze(-1)</span> adds a size-1 axis at the end, making <span class=\"m\">(4, 8, 1)</span>, and now the broadcasting rule from stage 3 fires a second time &mdash; the 1 is repeated across all <span class=\"m\">F</span> features. The multiply leaves every number at a real event untouched and turns every number at a pad position into 0, all 37 of them, with no Python loop over rows."},
     {tab:"6 · sum / len", vb:"0 0 880 418", fn:s6,
      alt:"Row 1 of the toy taken apart: its feature values, its mask, the masked values, their sum, and the sum divided by 8 next to the sum divided by 3.",
      ttl:"Sum the real events, then divide by the right number",
@@ -4848,12 +4977,10 @@ function staged(prefix, STAGES, opts){
   /* drawing scale: the batch axis (B = 256) is BH tall, the 50-step axis is TW wide, a feature depth F is
      drawn as an isometric offset. Depth is linear but never below 3.6px so a depth of 1 is still visible. */
   const BH = 100, TW = 150, ROWY = 36, LEN = 12;
-  const depth = F => 3 + F*0.6;                       /* 1 -> 3.6   8 -> 7.8   32 -> 22.2   41 -> 27.6   64 -> 41.4 */
+  const depth = F => 3 + F*0.6;                       /* 1 -> 3.6   4 -> 5.4   32 -> 22.2   37 -> 25.2   64 -> 41.4 */
   const CAT = "var(--cell)", BEH = "var(--input)", HRS = "var(--cand)", XIN = "var(--xin)", HID = "var(--hidden)", OUT = "var(--ink-2)";
   const BGC = "var(--cell-bg)", BGB = "var(--input-bg)", BGH = "var(--cand-bg)", BGX = "var(--xin-bg)", BGHID = "var(--hidden-bg)", BGO = "var(--surface-2)";
   const nbsp = s => s.replace(/ {2,}/g, m => " ".repeat(m.length));   /* SVG collapses runs of spaces */
-  /* seeded pseudo-random, so the dropout speckle is the same on every redraw */
-  let seed = 7; const rnd = () => (seed = (seed*1103515245 + 12345) % 2147483648) / 2147483648;
 
   /* the current line of forward(), in a code-styled box; the comment is dimmed */
   function code(y, s){
@@ -4935,7 +5062,7 @@ function staged(prefix, STAGES, opts){
 
   /* ---- 2 : cat_emb ---- */
   function s2(){
-    let o = code(14,"c = self.cat_emb(cats)                    # (B, 50)    -> (B, 50, 32)");
+    let o = code(14,"self.category_embedding(cats)             # (B, 50) -> (B, 50, 32)");
     const y = 112;
     o += tensor(60,y,{c:CAT,bg:BGC,row:true,dim:true});
     o += label(60,y+BH+22,"cats","(B, 50)","int64",CAT,{dim:true});
@@ -4947,7 +5074,7 @@ function staged(prefix, STAGES, opts){
     o += T(355,y+110,"row 0 never updates",{s:10,a:"middle",f:"var(--ink-3)"});
     o += arrow(438,508,y+50,"32 floats out");
     o += tensor(520,y,{F:32,c:CAT,bg:BGC,row:true});
-    o += label(520,y+BH+22,"c","(B, 50, 32)","float32",CAT);
+    o += label(520,y+BH+22,"category vectors","(B, 50, 32)","float32",CAT);
     o += T(40,286,"Every integer in cats is replaced by the row it names, so a third axis of 32 appears and the dtype turns into float32.",{s:10.5,f:"var(--ink-3)"});
     o += T(40,302,"The marked user's "+(50-LEN)+" pad steps all name row 0 and become 32 zeros each.",{s:10.5,f:"var(--ink-3)"});
     return o;
@@ -4955,16 +5082,16 @@ function staged(prefix, STAGES, opts){
 
   /* ---- 3 : beh_emb + hours ---- */
   function s3(){
-    let o = code(14,"b = self.beh_emb(behs)                    # (B, 50)    -> (B, 50,  8)");
-    o += code(48,"h = hours.unsqueeze(-1)                   # (B, 50)    -> (B, 50,  1)");
+    let o = code(14,"self.behavior_embedding(behs)             # (B, 50) -> (B, 50, 4)");
+    o += code(48,"hours.unsqueeze(-1)                        # (B, 50) -> (B, 50, 1)");
     const y1 = 108, y2 = 268;
     o += tensor(60,y1,{c:BEH,bg:BGB,row:true,dim:true});
     o += label(60,y1+BH+22,"behs","(B, 50)","int64",BEH,{dim:true});
     o += arrow(216,272,y1+50,"index");
-    o += opbox(276,y1+12,158,76,[["nn.Embedding",11.5,BEH],["5 × 8 table, 40 params",10.5],["row 0: 8 zeros",10,"var(--ink-3)"]],BEH);
-    o += arrow(438,508,y1+50,"8 floats out");
-    o += tensor(520,y1,{F:8,c:BEH,bg:BGB,row:true});
-    o += label(520,y1+BH+22,"b","(B, 50, 8)","float32",BEH);
+    o += opbox(276,y1+12,158,76,[["nn.Embedding",11.5,BEH],["5 × 4 table, 20 params",10.5],["row 0: 4 zeros",10,"var(--ink-3)"]],BEH);
+    o += arrow(438,508,y1+50,"4 floats out");
+    o += tensor(520,y1,{F:4,c:BEH,bg:BGB,row:true});
+    o += label(520,y1+BH+22,"behavior vectors","(B, 50, 4)","float32",BEH);
     o += T(700,y1+BH+22,"pad · pv · cart · fav · buy",{s:10,f:"var(--ink-3)"});
     o += T(700,y1+BH+37,"five rows, one per behaviour",{s:10,f:"var(--ink-3)"});
 
@@ -4974,7 +5101,7 @@ function staged(prefix, STAGES, opts){
     o += opbox(276,y2+22,158,56,[["unsqueeze(-1)",11.5,HRS],["no weights: add an axis",10,"var(--ink-3)"]],HRS);
     o += arrow(438,508,y2+50,"same numbers");
     o += tensor(520,y2,{F:1,c:HRS,bg:BGH,row:true});
-    o += label(520,y2+BH+22,"h","(B, 50, 1)","float32",HRS);
+    o += label(520,y2+BH+22,"hour values","(B, 50, 1)","float32",HRS);
     o += T(700,y2+BH+22,"already a quantity,",{s:10,f:"var(--ink-3)"});
     o += T(700,y2+BH+37,"so no table is needed",{s:10,f:"var(--ink-3)"});
     return o;
@@ -5000,30 +5127,30 @@ function staged(prefix, STAGES, opts){
     return {svg:s, d:d};
   }
   function s4(){
-    let o = code(14,"x = torch.cat([c, b, h], dim=-1)          #            -> (B, 50, 41)");
+    let o = code(14,"features = torch.cat((category, behavior, hours), dim=-1)  # -> (B, 50, 37)");
     o += HD(40,72,"THREE BLOCKS, LAID END TO END ALONG THE LAST AXIS");
     /* the three inputs, stacked back to front along the depth direction */
     const cy = 190, gap = 34;
-    const dc = depth(32), db = depth(8), dh = depth(1);
+    const dc = depth(32), db = depth(4), dh = depth(1);
     const bx = 60 + dc + gap, by = cy - dc - gap, hx = bx + db + gap, hy = by - db - gap;
     o += '<g opacity="0.75">';
     o += tensor(hx,hy,{F:1,c:HRS,bg:BGH,nolbl:true});
-    o += tensor(bx,by,{F:8,c:BEH,bg:BGB,nolbl:true});
+    o += tensor(bx,by,{F:4,c:BEH,bg:BGB,nolbl:true});
     o += tensor(60,cy,{F:32,c:CAT,bg:BGC,row:true,nolbl:true});
     o += '</g>';
-    o += T(60,cy+BH+18,"c  (B, 50, 32)  ·  32 deep",{s:11,f:CAT,w:"700"});
-    o += T(bx+TW+db+12,by+BH-6,"b  (B, 50, 8)  ·  8 deep",{s:11,f:BEH,w:"700"});
-    o += T(hx+TW+dh+12,hy+BH-6,"h  (B, 50, 1)  ·  1 deep",{s:11,f:HRS,w:"700"});
+    o += T(60,cy+BH+18,"category  (B, 50, 32)  ·  32 deep",{s:11,f:CAT,w:"700"});
+    o += T(bx+TW+db+12,by+BH-6,"behavior  (B, 50, 4)  ·  4 deep",{s:11,f:BEH,w:"700"});
+    o += T(hx+TW+dh+12,hy+BH-6,"hours  (B, 50, 1)  ·  1 deep",{s:11,f:HRS,w:"700"});
     /* the result, with its depth split into the three slabs */
     const xx = 560;
     o += arrow(440,548,cy+50,"torch.cat, dim=-1");
-    const bd = bands(xx,cy,TW,BH,[{F:32,c:CAT,bg:BGC},{F:8,c:BEH,bg:BGB},{F:1,c:HRS,bg:BGH}]);
+    const bd = bands(xx,cy,TW,BH,[{F:32,c:CAT,bg:BGC},{F:4,c:BEH,bg:BGB},{F:1,c:HRS,bg:BGH}]);
     o += bd.svg;
     o += B(xx,cy,TW,BH,{f:BGX,st:XIN,sw:1.5,r:2});
     o += L(xx+1,cy+ROWY,xx+TW-1,cy+ROWY,{c:XIN,w:2.2});
-    o += T(xx+TW+bd.d+6,cy-bd.d+11,"41 deep",{s:10,f:XIN,w:"700"});
-    o += T(xx+TW+bd.d+6,cy-bd.d+26,"32 + 8 + 1",{s:10,f:"var(--ink-3)"});
-    o += label(xx,cy+BH+22,"x","(B, 50, 41)","float32  ·  x[u, t] is the x_t of Part 4",XIN);
+    o += T(xx+TW+bd.d+6,cy-bd.d+11,"37 deep",{s:10,f:XIN,w:"700"});
+    o += T(xx+TW+bd.d+6,cy-bd.d+26,"32 + 4 + 1",{s:10,f:"var(--ink-3)"});
+    o += label(xx,cy+BH+22,"features","(B, 50, 37)","float32  ·  features[u, t] is x_t in Part 4",XIN);
     return o;
   }
 

@@ -17,6 +17,4 @@ __pycache__/
 .DS_Store
 notebooks/.ipynb_checkpoints/
 
-# Local agent instructions, not part of the published project.
-CLAUDE.md
 .pytest_cache/

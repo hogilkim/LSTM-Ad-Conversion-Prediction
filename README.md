@@ -63,6 +63,21 @@ category indices never see validation or test days; ids seen fewer than 5 times 
 uv run pytest
 ```
 
+## Train and evaluate the LSTM
+
+After building the tensor artifacts, run the reproducible training pipeline:
+
+```bash
+uv run python -m taobao.train
+```
+
+It uses seed 42, batch size 256, Adam, and at most 15 epochs by default. Training data is
+shuffled; validation and test data are not. Validation AUC selects the checkpoint in
+`models/conversion_lstm_best.pt`, with early stopping after three epochs without an AUC
+improvement. The test split is loaded only after training, and is evaluated exactly once
+with the restored best checkpoint. Run `uv run python -m taobao.train --help` for optional
+device, worker, optimization, and model-size settings.
+
 ## Results
 
 | Model | Split | AUC | Log loss |

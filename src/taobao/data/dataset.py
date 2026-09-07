@@ -20,6 +20,7 @@ class TensorSplitDataset(Dataset[dict[str, torch.Tensor]]):
         tensors_dir: Path = DEFAULT_OUT_DIR,
         include_items: bool = False,
     ) -> None:
+        self.split = split
         self.array_names = (("items",) if include_items else ()) + MODEL_ARRAY_NAMES
         self.arrays = load_split(split, tensors_dir, self.array_names)
         self._validate_shapes()
