@@ -80,9 +80,16 @@ device, worker, optimization, and model-size settings.
 
 ## Results
 
+Rows are written by the scoring command, never by hand. The LSTM validation row came from
+the seed-42 checkpoint produced by `uv run python -m taobao.train`, scored with:
+
+```bash
+uv run python -m taobao.score --split val --update-readme
+```
+
 <!-- results-table:start -->
 | Model | Split | AUC | Log loss | AUC (seq_len 3-10) | AUC (seq_len 11-30) | AUC (seq_len 31-50) |
 |-------|-------|-----|----------|--------------------|---------------------|---------------------|
 | Logistic regression baseline | TBD | TBD | TBD | TBD | TBD | TBD |
-| LSTM | TBD | TBD | TBD | TBD | TBD | TBD |
+| LSTM | validation | 0.599836 | 0.461043 | 0.585252 | 0.599446 | 0.604940 |
 <!-- results-table:end -->
