@@ -78,10 +78,29 @@ improvement. The test split is loaded only after training, and is evaluated exac
 with the restored best checkpoint. Run `uv run python -m taobao.train --help` for optional
 device, worker, optimization, and model-size settings.
 
+## Logistic regression baseline
+
+The baseline reads the same right-padded tensors as the LSTM, so both models see exactly
+the same 50 events per example. It builds eleven count and recency features (`pv`, `cart`,
+`fav`, `buy` counts, distinct categories, `seq_len`, hours since the last event, hours
+since the last cart-or-fav, and events, carts and buys in the last 24 hours), standardises
+them, and fits an L2 logistic regression on the train split only:
+
+```bash
+uv run python -m taobao.baseline --split val --update-readme
+```
+
+Recorded run (2026-09-07): features built in 2.0 s, fit in 0.3 s, model saved to
+`models/baseline_logreg.joblib`. The largest standardised coefficients were `buy_count`
+(+0.246), `events_last_24h` (+0.171), `hours_since_last_event` (-0.115) and
+`hours_since_last_cart_or_fav` (-0.111). As a sanity floor, the last-24h cart count used
+directly as a score, with no model at all, gives validation AUC 0.537289.
+
 ## Results
 
-Rows are written by the scoring command, never by hand. The LSTM validation row came from
-the seed-42 checkpoint produced by `uv run python -m taobao.train`, scored with:
+Rows are written by the scoring commands, never by hand. The baseline row came from the
+command above. The LSTM validation row came from the seed-42 checkpoint produced by
+`uv run python -m taobao.train`, scored with:
 
 ```bash
 uv run python -m taobao.score --split val --update-readme
@@ -90,6 +109,6 @@ uv run python -m taobao.score --split val --update-readme
 <!-- results-table:start -->
 | Model | Split | AUC | Log loss | AUC (seq_len 3-10) | AUC (seq_len 11-30) | AUC (seq_len 31-50) |
 |-------|-------|-----|----------|--------------------|---------------------|---------------------|
-| Logistic regression baseline | TBD | TBD | TBD | TBD | TBD | TBD |
+| Logistic regression baseline | validation | 0.585718 | 0.461970 | 0.548767 | 0.585529 | 0.598380 |
 | LSTM | validation | 0.599836 | 0.461043 | 0.585252 | 0.599446 | 0.604940 |
 <!-- results-table:end -->

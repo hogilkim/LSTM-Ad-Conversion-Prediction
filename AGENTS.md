@@ -51,42 +51,33 @@ Completed:
 - Recorded LSTM validation row (2026-09-07) from the seed-42 checkpoint
   `models/conversion_lstm_best.pt`, epoch 2: AUC 0.599836, log loss 0.461043, bucket AUC
   0.585 / 0.599 / 0.605. The test split has not been scored through the README path.
+- Logistic-regression baseline (2026-09-07): `taobao.features.counts` builds eleven
+  count/recency features from the padded tensors (hours inverted from the log scale and
+  rounded to whole seconds); `taobao.baseline` fits scaler + L2 logistic regression on
+  train and scores one split. Validation AUC 0.585718, log loss 0.461970, bucket AUC
+  0.549 / 0.586 / 0.598; last-24h cart count alone gives AUC 0.537289. The LSTM leads by
+  +0.014 AUC on validation, inside the expected +0.005 to +0.02 range.
 
 Immediate next work, following the plan in `CLAUDE.md`:
 
-1. Implement the logistic-regression baseline on count and recency features, including
-   the last-24-hour cart-count sanity floor. This is the number the LSTM must be compared
-   against; the LSTM row alone means nothing.
-2. Run bounded LSTM tuning (at most four runs), then implement mean-pooling, GRU, and item
-   embedding ablations.
-3. Record final baseline/model/ablation results and caveats in the README.
-4. Add a FastAPI endpoint with offline/online encoding parity, then measure latency and
+1. Run bounded LSTM tuning (at most four runs, learning rate and embedding dim only),
+   then implement mean-pooling, GRU, and item embedding ablations behind one `--model`
+   flag.
+2. Record final baseline/model/ablation results and caveats in the README, scoring the
+   test split exactly once.
+3. Add a FastAPI endpoint with offline/online encoding parity, then measure latency and
    add Docker packaging.
 
-## Next session: logistic-regression baseline
+## Next session: bounded LSTM tuning and ablations
 
-Implement only roadmap item 1 (CLAUDE.md Step 3):
+Implement roadmap item 1 (CLAUDE.md Steps 5 and 6):
 
-- Build count features from the same right-padded tensors the LSTM reads
-  (`data/processed/tensors/{split}_*.npy`, loaded through `taobao.data.tensors.load_split`),
-  so both models see exactly the same 50 events. Note the `hours` array is already
-  transformed to `log1p(hours) / log1p(168)`; invert it or read `examples.parquet` for raw
-  hours, and state which in the code.
-- Features: `pv/cart/fav/buy` counts, distinct categories, `seq_len`, hours since last
-  event, hours since last cart-or-fav, events in last 24h, cart count in last 24h, buy
-  count in last 24h. Padded positions must not count.
-- Standardise, then sklearn `LogisticRegression`. Fit on train only.
-- Score validation with `taobao.evaluation.evaluate` and write the row with
-  `update_readme_results(model="Logistic regression baseline", split="validation")`.
-- Also record the AUC of "cart count in last 24h" alone as a sanity floor, in prose next
-  to the table, not as a table row.
-- Tests: feature counts on a small hand-built padded batch, padding ignored, last-24h
-  windows at the boundary.
-- Record the exact command in the README. Do not score the test split. Do not tune the
-  LSTM. Do not push until the user says to.
-- After implementation, walk through the changed files one chunk at a time, concisely,
-  checking the user's understanding per chunk. The user has a CS background and is new to
-  ML.
+- Tuning: at most four `taobao.train` runs varying learning rate and embedding dim.
+  Record each run's exact command and validation AUC; keep the best checkpoint.
+- Ablations behind one `--model` flag: masked mean pooling (`(x * mask).sum(1) /
+  lengths`, never divide by 50), GRU, and an item-embedding variant. Score each on
+  validation with `taobao.score` and append rows to the single README table.
+- Do not score the test split until Step 7. Do not push until the user says to.
 
 ## Code conventions
 
