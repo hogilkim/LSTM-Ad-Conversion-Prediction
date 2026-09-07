@@ -60,7 +60,8 @@ Implemented in `src/taobao/data/prepare.py`.
 
 ## Model plan
 
-All of this is planned, not yet built. Ordered so that stopping after any step still
+Status as of 2026-09-07: Steps 1, 2 and 4 are built; the LSTM validation row is in the
+README. Step 3 (the baseline) is next. Ordered so that stopping after any step still
 leaves a coherent project. Budget about 10 hours. Steps 1-5 produce the resume bullet,
 6-7 produce the interview answers, 8-10 finish the sentence.
 
