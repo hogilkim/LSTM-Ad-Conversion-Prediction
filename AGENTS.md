@@ -68,16 +68,19 @@ Immediate next work, following the plan in `CLAUDE.md`:
 3. Add a FastAPI endpoint with offline/online encoding parity, then measure latency and
    add Docker packaging.
 
-## Next session: bounded LSTM tuning and ablations
+## Next session: bounded LSTM tuning (CLAUDE.md Step 5 only)
 
-Implement roadmap item 1 (CLAUDE.md Steps 5 and 6):
-
-- Tuning: at most four `taobao.train` runs varying learning rate and embedding dim.
-  Record each run's exact command and validation AUC; keep the best checkpoint.
-- Ablations behind one `--model` flag: masked mean pooling (`(x * mask).sum(1) /
-  lengths`, never divide by 50), GRU, and an item-embedding variant. Score each on
-  validation with `taobao.score` and append rows to the single README table.
-- Do not score the test split until Step 7. Do not push until the user says to.
+- Hard cap of four runs total, including the recorded seed-42 default run (learning rate
+  1e-3, category embedding dim 32, validation AUC 0.599836). Run the remaining three:
+  learning rate 3e-4 with dim 32, learning rate 1e-3 with dim 16, learning rate 1e-3 with
+  dim 64. Give each run its own `--checkpoint` path under `models/` so nothing is
+  overwritten. Runs may go in the background.
+- Record each run's exact command, wall time, best epoch and validation AUC in a small
+  tuning table in the README, and state which checkpoint the LSTM results row uses.
+- No new model code. Do not score the test split. Do not start ablations. Do not push
+  until the user says to.
+- Explain each step chunk by chunk, briefly, and wait for the user to confirm
+  understanding before moving on. The user has a CS background and is new to ML.
 
 ## Code conventions
 
