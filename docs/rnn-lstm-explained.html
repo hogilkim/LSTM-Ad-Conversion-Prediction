@@ -150,7 +150,7 @@ h2.sec-title{font-family:var(--f-display); font-weight:700; font-size:clamp(27px
 h3{font-family:var(--f-display); font-weight:650; font-size:21px; letter-spacing:-.015em; line-height:1.25;
   margin:2.1em auto .55em; max-width:var(--col); text-wrap:balance}
 h4{font-family:var(--f-mono); font-weight:500; font-size:12px; letter-spacing:.12em; text-transform:uppercase;
-  color:var(--ink-3); margin:1.9em auto .5em; max-width:var(--col)}
+  color:var(--ink-3); margin:1.9em auto .5em; max-width:var(--col); break-after:avoid-page; page-break-after:avoid}
 hr.div{max-width:var(--col); margin:44px auto; border:0; border-top:1px solid var(--rule)}
 
 /* ---------- inline type ---------- */
@@ -733,7 +733,7 @@ footer p{font-size:14.5px; color:var(--ink-3)}
           <rect x="746" y="40" width="100" height="38" rx="4" fill="var(--surface)" stroke="var(--rule-2)" stroke-dasharray="3 3"/>
           <text x="796" y="56" fill="var(--ink-3)" font-size="10" text-anchor="middle">batch 2,901</text>
           <text x="796" y="71" fill="var(--ink-2)" font-size="10.5" text-anchor="middle">211 rows</text>
-          <text x="100" y="98" fill="var(--ink-3)" font-size="10.5">742,611 examples &divide; 256 (the planned batch size) = 2,900.8 &nbsp;&rarr;&nbsp; 2,901 batches, the last one short; reshuffled every epoch.</text>
+          <text x="100" y="98" fill="var(--ink-3)" font-size="10.5">742,611 examples &divide; 256 (the implemented default) = 2,900.8 &nbsp;&rarr;&nbsp; 2,901 batches, the last one short; reshuffled every epoch.</text>
 
           <!-- one batch -> one update -->
           <path d="M78 82 L78 130" fill="none" stroke="var(--cell)" stroke-width="1.6" marker-end="url(#fb-c)"/>
@@ -1764,7 +1764,7 @@ optimizer.step()                    <span class="cm"># only model parameters are
       </div>
     </div>
   </div>
-  <div class="trap"><span class="lbl">Why this is a real bug</span><p>Taking <span class="m">h_n</span> straight from an unpacked padded batch gives the state at <span class="m">t = 49</span>, not the state at each row&rsquo;s last real event. The walkthrough above shows a visible difference for hand-set weights; the size for a trained project model is not known until that model exists. Regardless of magnitude, the two vectors answer different questions, shapes still match, and nothing raises an error. Compare both readouts in a regression test and report the validation effect rather than assuming it.</p></div>
+  <div class="trap"><span class="lbl">Why this is a real bug</span><p>Taking <span class="m">h_n</span> straight from an unpacked padded batch gives the state at <span class="m">t = 49</span>, not the state at each row&rsquo;s last real event. The implemented model avoids this by packing, and <span class="m">test_conversion_lstm_ignores_positions_after_each_length</span> changes every value after a row&rsquo;s declared length and asserts that its logit is exactly unchanged. The validation-size effect against an intentionally wrong unpacked version is still unknown until training results are recorded.</p></div>
 
   <h3>6.3 &nbsp;Three correct fixes</h3>
   <p>The first two produce the <em class="lead">identical</em> vector for a unidirectional model read at its last state, by two different routes &mdash; and knowing why they are equivalent is a better interview answer than knowing either one alone. The third is not an alternative to them: it is what you do when you are not reading a last state at all.</p>
@@ -1772,7 +1772,7 @@ optimizer.step()                    <span class="cm"># only model parameters are
   <h4>Fix 1 &mdash; packing</h4>
   <pre><code><span class="kw">from</span> torch.nn.utils.rnn <span class="kw">import</span> pack_padded_sequence
 
-packed = <span class="fn">pack_padded_sequence</span>(x, lengths.<span class="fn">cpu</span>(), batch_first=<span class="kw">True</span>, enforce_sorted=<span class="kw">False</span>)
+packed = <span class="fn">pack_padded_sequence</span>(x, lengths.<span class="fn">detach</span>().<span class="fn">cpu</span>(), batch_first=<span class="kw">True</span>, enforce_sorted=<span class="kw">False</span>)
 out_packed, (h_n, c_n) = <span class="fn">self</span>.lstm(packed)
 <span class="cm"># h_n is now the state at each row's own final real step. Shape (1, B, 64).</span>
 summary = h_n[<span class="nu">-1</span>]                              <span class="cm"># (B, 64)</span></code></pre>
@@ -1856,16 +1856,16 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
   <div class="sec-head">
     <span class="sec-num">PART 07</span>
     <h2 class="sec-title">This project, end to end</h2>
-    <p class="sec-sub">The code that exists in this repository: one real Taobao user followed from raw CSV rows through preprocessing, memory-mapped tensors, the packed LSTM, training, model selection and one final test evaluation.</p>
+    <p class="sec-sub">The code that exists in this repository: one real Taobao user followed from raw CSV rows through preprocessing, memory-mapped tensors, the packed LSTM, training, model selection, shared evaluation and one final test evaluation.</p>
   </div>
 
-  <div class="win"><span class="lbl">Implementation status</span><p><strong>Implemented and tested:</strong> raw-data preparation, fixed tensor artifacts, a memory-mapped dataset, the packed <span class="m">ConversionLSTM</span>, reproducible training, AUC and log-loss evaluation, validation-AUC early stopping, atomic best-checkpoint saving, restoration, and test-once evaluation. <strong>Not implemented yet:</strong> the logistic-regression baseline, trained result values, and the FastAPI serving endpoint. This section labels future work explicitly instead of presenting it as code that already exists.</p></div>
+  <div class="win"><span class="lbl">Implementation status</span><p><strong>Implemented and tested:</strong> raw-data preparation, fixed tensor artifacts, a memory-mapped dataset, the packed <span class="m">ConversionLSTM</span>, reproducible training, shared overall and sequence-length-bucket evaluation, validation-AUC early stopping, atomic best-checkpoint saving, restoration, test-once evaluation, and a deterministic README-results updater. <strong>Not implemented yet:</strong> the logistic-regression baseline, trained result values, and the FastAPI serving endpoint. This section labels future work explicitly instead of presenting it as code that already exists.</p></div>
 
   <h3>7.0 &nbsp;Where the implementation lives</h3>
   <p>Read this diagram left to right. Solid colored boxes are Python modules in the repository; neutral boxes are artifacts or runtime values those modules produce. The second row starts from the saved arrays rather than loading the whole processed dataset into memory.</p>
   <figure id="fig-implementation">
     <div class="figbox">
-      <svg viewBox="0 0 880 360" role="img" aria-label="Implemented project pipeline: prepare.py creates examples parquet, tensors.py creates split NumPy arrays, dataset.py memory-maps them into DataLoaders, model.py produces logits with a packed LSTM, and train.py trains, validates, saves the best checkpoint, restores it, and evaluates test once.">
+      <svg viewBox="0 0 880 400" role="img" aria-label="Implemented project pipeline: prepare.py creates examples parquet, tensors.py creates split NumPy arrays, dataset.py memory-maps them into DataLoaders, model.py produces logits with a packed LSTM, train.py trains and selects a checkpoint, and evaluation.py calculates shared overall and length-bucket metrics.">
         <defs>
           <marker id="im-i" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--ink-3)"/></marker>
           <marker id="im-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--hidden)"/></marker>
@@ -1909,18 +1909,30 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
           <a href="../src/taobao/train.py"><rect x="464" y="180" width="184" height="72" rx="8" fill="var(--cell-bg)" stroke="var(--cell)" stroke-width="1.5"/>
           <text x="556" y="203" fill="var(--cell)" font-size="11" text-anchor="middle" font-weight="700">train.py</text>
           <text x="556" y="222" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">BCE logits &middot; Adam</text>
-          <text x="556" y="238" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">validation AUC &middot; patience 3</text></a>
+          <text x="556" y="238" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">select by overall val AUC</text></a>
           <line x1="648" y1="216" x2="682" y2="216" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#im-i)"/>
           <rect x="684" y="180" width="172" height="72" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
           <text x="770" y="203" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">best checkpoint</text>
           <text x="770" y="222" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">model + config + history</text>
           <text x="770" y="238" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">written atomically</text>
 
-          <path d="M770 252 L770 286 L556 286" fill="none" stroke="var(--hidden)" stroke-width="1.5" marker-end="url(#im-h)"/>
-          <rect x="354" y="270" width="202" height="62" rx="8" fill="var(--hidden-bg)" stroke="var(--hidden)"/>
-          <text x="455" y="294" fill="var(--hidden)" font-size="10.5" text-anchor="middle" font-weight="700">restore best weights</text>
-          <text x="455" y="314" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">then open + score test once</text>
-          <text x="24" y="350" fill="var(--ink-3)" font-size="9.5">No serving box appears because no API module exists yet.</text>
+          <path d="M556 252 L556 264 L132 264 L132 276" fill="none" stroke="var(--hidden)" stroke-width="1.5" marker-end="url(#im-h)"/>
+          <a href="../src/taobao/evaluation.py"><rect x="24" y="278" width="216" height="68" rx="8" fill="var(--input-bg)" stroke="var(--input)" stroke-width="1.5"/>
+          <text x="132" y="300" fill="var(--input)" font-size="11" text-anchor="middle" font-weight="700">evaluation.py</text>
+          <text x="132" y="320" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">overall AUC + log loss</text>
+          <text x="132" y="336" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">AUC for 3 length buckets</text></a>
+          <line x1="240" y1="312" x2="274" y2="312" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#im-i)"/>
+          <rect x="276" y="278" width="216" height="68" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
+          <text x="384" y="300" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">EvaluationMetrics</text>
+          <text x="384" y="320" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">used by validation + test</text>
+          <text x="384" y="336" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">README updater available</text>
+
+          <path d="M770 252 L770 276" fill="none" stroke="var(--hidden)" stroke-width="1.5" marker-end="url(#im-h)"/>
+          <rect x="640" y="278" width="216" height="68" rx="8" fill="var(--hidden-bg)" stroke="var(--hidden)"/>
+          <text x="748" y="300" fill="var(--hidden)" font-size="10.5" text-anchor="middle" font-weight="700">restore best weights</text>
+          <text x="748" y="320" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">then open test once</text>
+          <text x="748" y="336" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">score through evaluation.py</text>
+          <text x="24" y="382" fill="var(--ink-3)" font-size="9.5">No serving box appears because no API module exists yet.</text>
         </g>
       </svg>
     </div>
@@ -2008,6 +2020,26 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
   </div>
   <p>Because <span class="m">max_len</span> is fixed at 50, all of this is pre-padded once into <span class="m">.npy</span> arrays rather than assembled per batch by a <span class="m">collate_fn</span>. At this length, per-batch padding costs more than it saves.</p>
 
+  <div class="code-head"><span class="actual">Actual implementation</span><a href="../src/taobao/data/tensors.py">src/taobao/data/tensors.py</a></div>
+  <pre><code>hours = <span class="fn">_right_pad</span>(examples[<span class="st">"hours"</span>].<span class="fn">to_list</span>(), max_len, np.<span class="fn">dtype</span>(np.float32))
+hours = np.<span class="fn">log1p</span>(hours) / np.<span class="fn">log1p</span>(np.<span class="fn">float32</span>(<span class="nu">168.0</span>))
+lengths = examples[<span class="st">"seq_len"</span>].<span class="fn">to_numpy</span>().<span class="fn">astype</span>(np.int64)
+labels = examples[<span class="st">"label"</span>].<span class="fn">to_numpy</span>().<span class="fn">astype</span>(np.float32)
+
+<span class="kw">for</span> name <span class="kw">in</span> ARRAY_NAMES:
+    np.<span class="fn">save</span>(out_dir / <span class="st">f"{split}_{name}.npy"</span>, tensors[name].<span class="fn">numpy</span>())</code></pre>
+
+  <div class="code-head"><span class="actual">Actual implementation</span><a href="../src/taobao/data/dataset.py">src/taobao/data/dataset.py</a></div>
+  <pre><code><span class="fn">self</span>.arrays = <span class="fn">load_split</span>(split, tensors_dir, <span class="fn">self</span>.array_names)
+<span class="cm"># load_split uses np.load(..., mmap_mode="r", allow_pickle=False)</span>
+
+<span class="kw">def</span> <span class="fn">__getitem__</span>(<span class="fn">self</span>, index):
+    <span class="kw">return</span> {
+        name: torch.<span class="fn">from_numpy</span>(np.<span class="fn">array</span>(<span class="fn">self</span>.arrays[name][index], copy=<span class="kw">True</span>))
+        <span class="kw">for</span> name <span class="kw">in</span> <span class="fn">self</span>.array_names
+    }</code></pre>
+  <p>The split stays on disk as read-only memory maps. <span class="m">__getitem__</span> copies only one example; the <span class="m">DataLoader</span> stacks those small row tensors into a batch. The unused <span class="m">items</span> array is excluded by default, so version 1 pays no memory or I/O cost for a feature the model does not consume.</p>
+
   <h3>7.5 &nbsp;The forward pass, shape by shape</h3>
   <div class="code-head wide"><span class="actual">Actual implementation</span><a href="../src/taobao/model.py">src/taobao/model.py</a></div>
   <pre class="wide"><code><span class="kw">from</span> torch.nn.utils.rnn <span class="kw">import</span> pack_padded_sequence
@@ -2088,7 +2120,7 @@ pooled = (x * mask).<span class="fn">sum</span>(dim=<span class="nu">1</span>) /
   </div>
   <p class="tcap">Identical on every count feature: 3 pv, 1 cart, 0 fav, 0 buy, 2 distinct categories, seq_len 4, 2h since the last event, 28h since the last cart-or-fav, 1 event in the last 24h, 0 carts and 0 buys in the last 24h. The difference is only <em class="lead">which category was carted relative to which was viewed after</em> &mdash; and B, still circling the carted item, is the better prospect.</p>
   <p>So the mechanism the LSTM has and the baseline does not is the ability to bind a behaviour to <em class="lead">what</em> it was about and carry that binding forward &mdash; the &ldquo;keep a slot open for this category until something closes it&rdquo; behaviour you watched the forget gate perform in 4.8.</p>
-  <div class="note"><span class="lbl">The honest frame, and what the ablation really controls for</span><p>The pair above is a <em class="lead">hypothesis about where lift could come from</em>, not a claim about what the trained model does. The mean-pooling ablation is what turns it into evidence &mdash; but be careful about how much it proves, because this is where the argument is easiest to overclaim.</p>
+  <div class="note"><span class="lbl">The honest frame, and what the planned ablation could control for</span><p>The pair above is a <em class="lead">hypothesis about where lift could come from</em>, not a claim about what the trained model does. The not-yet-implemented mean-pooling ablation could turn it into evidence &mdash; but be careful about how much it would prove, because this is where the argument is easiest to overclaim.</p>
   <p>Mean pooling would share the embeddings, so those would be controlled for. It would <em class="lead">not</em> share capacity. Pooling <span class="m">(B, 50, 37)</span> gives a 37-number vector, and a <span class="m">Linear(37, 1)</span> head on it is 38 parameters; the implemented LSTM-plus-classifier path is 26,433. So that planned ablation would remove order <em class="lead">and</em> nearly all the non-embedding capacity at the same time, and a gap between them would be an <em class="lead">upper bound</em> on what order contributes, not a measurement of it. To actually isolate order you would pool and then put a comparable-capacity MLP on the pooled vector, so only the ordering is gone.</p>
   <p>And if the LSTM ties mean pooling and mean pooling ties logistic regression, the honest conclusion is that this feature set and this dataset have a ceiling &mdash; not that the architecture needs more tuning.</p></div>
 
@@ -2149,7 +2181,7 @@ test_metrics = <span class="fn">evaluate</span>(model, test_loader, device)</cod
           <marker id="fl-i" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--ink-3)"/></marker>
         </defs>
         <g font-family="'JetBrains Mono',monospace">
-          <text x="30" y="24" fill="var(--ink-3)" font-size="10.5" letter-spacing="1.4">INNER LOOP &mdash; ONCE PER BATCH: 2,901 TIMES PER EPOCH AT THE PLANNED BATCH SIZE, 256</text>
+          <text x="30" y="24" fill="var(--ink-3)" font-size="10.5" letter-spacing="1.4">INNER LOOP &mdash; ONCE PER BATCH: 2,901 TIMES PER EPOCH AT THE DEFAULT BATCH SIZE, 256</text>
           <rect x="30" y="36" width="600" height="150" rx="12" fill="none" stroke="var(--rule-2)" stroke-dasharray="5 5"/>
 
           <rect x="42" y="60" width="136" height="56" rx="8" fill="var(--cell-bg)" stroke="var(--cell)" stroke-width="1.5"/>
@@ -2177,7 +2209,7 @@ test_metrics = <span class="fn">evaluate</span>(model, test_loader, device)</cod
 
           <!-- return arrow to next batch -->
           <path d="M554 116 L554 150 L110 150 L110 122" fill="none" stroke="var(--cell)" stroke-width="1.6" marker-end="url(#fl-c)"/>
-          <text x="334" y="144" fill="var(--cell)" font-size="10" text-anchor="middle">opt.zero_grad() &nbsp;&middot;&nbsp; next batch</text>
+          <text x="334" y="144" fill="var(--cell)" font-size="10" text-anchor="middle">optimizer.zero_grad(set_to_none=True) &nbsp;&middot;&nbsp; next batch</text>
           <text x="334" y="172" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">zero_grad first, or this batch&rsquo;s gradients are added on top of the last batch&rsquo;s</text>
 
           <!-- outer loop -->
@@ -2188,7 +2220,7 @@ test_metrics = <span class="fn">evaluate</span>(model, test_loader, device)</cod
           <line x1="226" y1="260" x2="248" y2="260" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#fl-i)"/>
           <rect x="250" y="236" width="196" height="48" rx="8" fill="var(--hidden-bg)" stroke="var(--hidden)"/>
           <text x="348" y="256" fill="var(--hidden)" font-size="10.5" text-anchor="middle" font-weight="700">evaluate(model, val)</text>
-          <text x="348" y="272" fill="var(--hidden)" font-size="9.5" text-anchor="middle">validation AUC (rank-based, 0.10)</text>
+          <text x="348" y="272" fill="var(--hidden)" font-size="9.5" text-anchor="middle">overall + 3 length-bucket AUCs</text>
           <line x1="446" y1="260" x2="468" y2="260" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#fl-i)"/>
           <rect x="470" y="236" width="380" height="48" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
           <text x="660" y="256" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">better than the best so far? &rarr; save checkpoint</text>
@@ -2209,19 +2241,103 @@ test_metrics = <span class="fn">evaluate</span>(model, test_loader, device)</cod
   </figure>
   <ol class="steps">
     <li><span class="sh"><span class="m">loss.backward()</span> is Part 3 happening.</span> It walks the packed recurrent chain backwards, multiplying local derivatives, and lands gradients on the model&rsquo;s ~249,000 parameters. For the example above the chain contains exactly 12 LSTM steps: packing removed positions 12 to 49 before the recurrence, so those pads are neither computed nor present in the backward graph.</li>
-    <li><span class="sh"><span class="m">zero_grad()</span> before <span class="m">backward()</span>, always.</span> PyTorch accumulates gradients into <span class="m">.grad</span> rather than replacing them. Forget this and each step uses the sum of every gradient so far, which trains something, just not your model.</li>
+    <li><span class="sh"><span class="m">zero_grad(set_to_none=True)</span> before <span class="m">backward()</span>, always.</span> PyTorch accumulates gradients into <span class="m">.grad</span> rather than replacing them. Setting them to <span class="m">None</span> is the implemented reset; forget the reset and each step uses the sum of every gradient so far.</li>
     <li><span class="sh">Evaluation changes mode and disables autograd.</span> <span class="m">evaluate()</span> remembers the incoming mode, calls <span class="m">model.eval()</span>, runs under <span class="m">torch.inference_mode()</span>, and restores training mode afterward. The current model has no dropout or batch normalisation, but this boundary is already correct if either is added later, and it avoids building graphs that evaluation will never backpropagate through.</li>
-    <li><span class="sh">Early stopping follows the declared objective.</span> This plan uses validation AUC because ranking is the primary comparison. A uniform recalibration cannot change AUC, but a real weekday-to-weekend population shift can change ranking too, so validation AUC still has to be measured. Because the endpoint returns a probability, log loss and calibration should also be reported; weekend miscalibration is operationally real, not merely a nuisance in the metric.</li>
+    <li><span class="sh">Early stopping follows the declared objective.</span> The implementation uses overall validation AUC because ranking is the primary comparison. A uniform recalibration cannot change AUC, but a real weekday-to-weekend population shift can change ranking too, so validation AUC still has to be measured. The shared evaluator also reports log loss from sigmoid probabilities and AUC for sequence lengths 3&ndash;10, 11&ndash;30 and 31&ndash;50; calibration analysis can be added when trained results exist.</li>
     <li><span class="sh">No <span class="m">pos_weight</span> for probability estimation.</span> With unweighted binary cross-entropy, the target is the observed purchase probability. Positive-class weighting changes that training target and usually requires calibration afterward. It can also change AUC because retraining may change the ordering; rank invariance applies to a fixed set of scores under a monotonic transform, not to a newly trained model.</li>
     <li><span class="sh">Test is read once.</span> Tuning happens on validation. The test cutoff of 3 December is scored when the results are final, and that number goes in the table whether or not it is flattering.</li>
   </ol>
+
+  <h4>One shared evaluation path for every model</h4>
+  <p>The training module does not implement a private version of the metrics. Its <span class="m">evaluate(model, loader, device)</span> function switches modes, applies <span class="m">sigmoid</span> to each batch of logits, and collects labels, probabilities and sequence lengths. It then delegates those three arrays to <span class="m">taobao.evaluation.evaluate()</span>. That boundary is deliberately model-agnostic, so the planned logistic-regression baseline can be judged by the exact same metric code.</p>
+
+  <div class="code-head wide"><span class="actual">Actual implementation</span><a href="../src/taobao/evaluation.py">shared metric core · src/taobao/evaluation.py</a></div>
+  <pre class="wide"><code>LENGTH_BUCKETS = (
+    (<span class="st">"3-10"</span>, <span class="nu">3</span>, <span class="nu">10</span>),
+    (<span class="st">"11-30"</span>, <span class="nu">11</span>, <span class="nu">30</span>),
+    (<span class="st">"31-50"</span>, <span class="nu">31</span>, <span class="nu">50</span>),
+)
+
+<span class="kw">for</span> name, lower, upper <span class="kw">in</span> LENGTH_BUCKETS:
+    in_bucket = (lengths_array &gt;= lower) &amp; (
+        lengths_array &lt;= upper
+    )
+    bucket_labels = labels_array[in_bucket]
+    <span class="kw">if</span> (
+        bucket_labels.size == <span class="nu">0</span> <span class="kw">or</span> np.<span class="fn">unique</span>(bucket_labels).size != <span class="nu">2</span>
+    ):
+        auc_by_sequence_length[name] = <span class="kw">None</span>
+    <span class="kw">else</span>:
+        auc_by_sequence_length[name] = <span class="fn">float</span>(
+            <span class="fn">roc_auc_score</span>(bucket_labels, probabilities_array[in_bucket])
+        )
+
+<span class="kw">return</span> <span class="fn">EvaluationMetrics</span>(
+    auc=<span class="fn">float</span>(<span class="fn">roc_auc_score</span>(labels_array, probabilities_array)),
+    log_loss=<span class="fn">float</span>(<span class="fn">log_loss</span>(
+        labels_array, probabilities_array, labels=[<span class="nu">0.0</span>, <span class="nu">1.0</span>]
+    )),
+    auc_by_sequence_length=auc_by_sequence_length,
+)</code></pre>
+
+  <figure id="fig-evaluation">
+    <div class="figbox">
+      <svg viewBox="0 0 880 286" role="img" aria-label="Implemented evaluation flow: train.py converts model logits to probabilities and collects labels and sequence lengths, evaluation.py validates the arrays and computes overall and length-bucket metrics, and an explicit helper can update the marked README results table atomically.">
+        <defs>
+          <marker id="fe-i" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--ink-3)"/></marker>
+          <marker id="fe-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--hidden)"/></marker>
+        </defs>
+        <g font-family="'JetBrains Mono',monospace">
+          <text x="24" y="24" fill="var(--ink-3)" font-size="10.5" letter-spacing="1.4">THE SAME MEASUREMENT PATH FOR VALIDATION, TEST AND THE PLANNED BASELINE</text>
+
+          <a href="../src/taobao/train.py"><rect x="24" y="46" width="194" height="112" rx="9" fill="var(--cell-bg)" stroke="var(--cell)" stroke-width="1.5"/>
+          <text x="121" y="69" fill="var(--cell)" font-size="11" text-anchor="middle" font-weight="700">train.evaluate()</text>
+          <text x="121" y="91" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">logits &rarr; sigmoid</text>
+          <text x="121" y="111" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">collect labels</text>
+          <text x="121" y="129" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">probabilities + lengths</text>
+          <text x="121" y="147" fill="var(--ink-3)" font-size="9" text-anchor="middle">no gradients; mode restored</text></a>
+
+          <line x1="218" y1="102" x2="250" y2="102" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#fe-i)"/>
+          <a href="../src/taobao/evaluation.py"><rect x="252" y="46" width="250" height="112" rx="9" fill="var(--input-bg)" stroke="var(--input)" stroke-width="1.5"/>
+          <text x="377" y="69" fill="var(--input)" font-size="11" text-anchor="middle" font-weight="700">evaluation.evaluate()</text>
+          <text x="377" y="91" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">validate 1-D finite arrays</text>
+          <text x="377" y="111" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">binary labels &middot; p in [0,1]</text>
+          <text x="377" y="129" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">integer seq_len in [3,50]</text>
+          <text x="377" y="147" fill="var(--ink-3)" font-size="9" text-anchor="middle">undefined bucket AUC &rarr; None</text></a>
+
+          <line x1="502" y1="102" x2="534" y2="102" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#fe-i)"/>
+          <rect x="536" y="46" width="320" height="112" rx="9" fill="var(--hidden-bg)" stroke="var(--hidden)" stroke-width="1.5"/>
+          <text x="696" y="69" fill="var(--hidden)" font-size="11" text-anchor="middle" font-weight="700">EvaluationMetrics</text>
+          <text x="556" y="95" fill="var(--ink-2)" font-size="9.5">overall</text>
+          <text x="628" y="95" fill="var(--ink)" font-size="9.5">AUC &middot; log loss</text>
+          <text x="556" y="119" fill="var(--ink-2)" font-size="9.5">slices</text>
+          <text x="628" y="119" fill="var(--ink)" font-size="9.5">AUC 3&ndash;10 &middot; 11&ndash;30 &middot; 31&ndash;50</text>
+          <text x="556" y="143" fill="var(--ink-2)" font-size="9.5">selection</text>
+          <text x="628" y="143" fill="var(--ink)" font-size="9.5">overall validation AUC only</text>
+
+          <path d="M696 158 L696 187 L502 187" fill="none" stroke="var(--hidden)" stroke-width="1.4" stroke-dasharray="4 4" marker-end="url(#fe-h)"/>
+          <text x="600" y="180" fill="var(--hidden)" font-size="9" text-anchor="middle">explicit helper call</text>
+          <a href="../src/taobao/evaluation.py"><rect x="252" y="190" width="250" height="58" rx="8" fill="var(--input-bg)" stroke="var(--input)"/>
+          <text x="377" y="214" fill="var(--input)" font-size="10.5" text-anchor="middle" font-weight="700">update_readme_results()</text>
+          <text x="377" y="234" fill="var(--ink-2)" font-size="9.5" text-anchor="middle">validate &middot; upsert &middot; atomic replace</text></a>
+          <line x1="502" y1="219" x2="534" y2="219" stroke="var(--ink-3)" stroke-width="1.4" marker-end="url(#fe-i)"/>
+          <rect x="536" y="190" width="320" height="58" rx="8" fill="var(--surface-2)" stroke="var(--rule-2)"/>
+          <text x="696" y="214" fill="var(--ink)" font-size="10.5" text-anchor="middle" font-weight="700">README marked results table</text>
+          <text x="696" y="234" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">one deterministic 7-column row per model + split</text>
+
+          <text x="24" y="272" fill="var(--ink-3)" font-size="9.5">The updater exists, but training does not call it automatically; no result row is written until metrics are deliberately recorded.</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>Metrics are separated from model inference. A length slice with no examples or only one label class returns <span class="m">None</span> because ROC AUC is undefined there; the README renderer writes that value as <span class="m">N/A</span>.</figcaption>
+  </figure>
 
   <h3>7.8 &nbsp;Next boundary: serving is planned, not implemented</h3>
   <p>There is no FastAPI module or prediction endpoint in the repository yet. The diagram below is therefore a <em class="lead">future implementation constraint</em>, not a description of working code. When serving is added, it must reuse the exact encoding rules from training: same sort order, last-50 truncation, vocabulary and rare mapping, behaviour mapping, hour clipping and log scaling. The acceptance test should send a test-set user through the future endpoint and require the returned probability to match the offline score for that same user and cutoff.</p>
 
   <figure id="fig-serve">
     <div class="figbox">
-      <svg viewBox="0 0 880 270" role="img" aria-label="Two lanes, training and serving, both passing raw events through the same encoder function before the same model; only the ends differ.">
+      <svg viewBox="0 0 880 270" role="img" aria-label="Future serving blueprint: the implemented offline lane and a planned serving lane must use matching encoding rules and the same model weights.">
         <defs>
           <marker id="fs-i" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--ink-3)"/></marker>
           <marker id="fs-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="var(--cell)"/></marker>
@@ -2269,7 +2385,7 @@ test_metrics = <span class="fn">evaluate</span>(model, test_loader, device)</cod
           <text x="651" y="140" fill="var(--hidden)" font-size="9.5" text-anchor="middle">(B, 50) &rarr; (B,)</text>
           <text x="651" y="156" fill="var(--hidden)" font-size="9.5" text-anchor="middle">B = 256 above</text>
           <text x="651" y="172" fill="var(--hidden)" font-size="9.5" text-anchor="middle">B = 1 below</text>
-          <text x="651" y="206" fill="var(--hidden)" font-size="9.5" text-anchor="middle">eval + no_grad</text>
+          <text x="651" y="206" fill="var(--hidden)" font-size="9.5" text-anchor="middle">eval + inference_mode</text>
           <text x="651" y="222" fill="var(--hidden)" font-size="9.5" text-anchor="middle">when scoring</text>
 
           <!-- ends -->
@@ -2340,14 +2456,14 @@ test_metrics = <span class="fn">evaluate</span>(model, test_loader, device)</cod
 
   <details class="qa"><summary>An LSTM has 4&times; the parameters of an RNN at the same hidden size. How do you know the gain is from gating and not capacity?</summary>
   <div class="qa-body">
-    <p>Fair challenge, and there are two ways to answer it. The clean one is to match parameter counts &mdash; compare against an RNN with a larger hidden size that lands near 27,000 recurrent parameters instead of 6,848.</p>
+    <p>Fair challenge, and there are two ways to answer it. The clean one is to match parameter counts &mdash; compare against an RNN with a larger hidden size that lands near 26,400 recurrent parameters instead of 6,592.</p>
     <p>The cheaper planned ablation is masked mean pooling: it shares the embeddings but has no recurrence. I would be careful not to oversell it, though, and saying so is the better answer. Pooling drops to 37 dimensions with a 38-parameter head against the LSTM&rsquo;s 26,433, so it removes order and capacity together &mdash; the gap is an upper bound on what order contributes rather than a clean measurement. Isolating order properly means pooling and then adding a comparable-capacity MLP head. Either way it answers a question worth more than the original: not &ldquo;is gating better than no gating&rdquo; but &ldquo;does order carry signal in this dataset at all&rdquo;.</p>
   </div></details>
 
   <details class="qa"><summary>Your positives are 14.7%. Why no <span class="m">pos_weight</span> or resampling?</summary>
   <div class="qa-body">
     <p>14.7% is imbalanced but supplies over a hundred thousand positive examples. More importantly, the task wants probabilities, and unweighted binary cross-entropy targets the observed class probability. A positive weight of <span class="m">(1&minus;&eta;)/&eta; = 5.79</span> changes that target. In an intercept-only base-rate calculation, the unweighted optimum has log loss about <span class="m">0.42</span>, while forcing the weighted optimum near 0.5 gives unweighted log loss about <span class="m">0.69</span>. Those are sanity-check calculations, not results from a trained LSTM.</p><p>Reweighting can also change AUC because the model is retrained and may learn a different ordering. Exact AUC invariance applies only when a fixed set of scores is passed through a monotonic transformation. If weighting helps ranking, calibrate afterward and report both metrics; do not assume either outcome.</p>
-    <p>Since the results table reports both AUC and log loss, and since a conversion probability is the kind of number a bid would be computed from, calibration is worth more here than a metric-neutral reweighting.</p>
+    <p>Since the results table reports overall AUC, log loss and AUC by sequence-length bucket, and since a conversion probability is the kind of number a bid would be computed from, calibration is worth more here than a metric-neutral reweighting.</p>
   </div></details>
 
   <details class="qa"><summary>What does a time-based split control for, and what does it not?</summary>
@@ -5154,98 +5270,71 @@ function staged(prefix, STAGES, opts){
     return o;
   }
 
-  /* ---- 5 : lstm ---- */
+  /* ---- 5 : pack ---- */
   function s5(){
-    let o = code(14,"out, _ = self.lstm(x)                    #            -> (B, 50, 64)");
-    const y = 124;
-    o += tensor(60,y,{F:41,c:XIN,bg:BGX,row:true,dim:true});
-    o += label(60,y+BH+22,"x","(B, 50, 41)","float32",XIN,{dim:true});
-    o += arrow(246,290,y+50,"");
-    o += opbox(300,y-22,180,146,[["nn.LSTM(41, 64)",12,CAT],["27,392 parameters"],["per row: 50 steps of the",10.5,"var(--ink-3)"],["six equations from 4.7",10.5,"var(--ink-3)"],["C and h carried step to step",10.5,"var(--ink-3)"],["h_t written to out[:, t]",10.5,"var(--ink-3)"]],CAT);
-    o += arrow(488,540,y+50,"");
-    o += tensor(552,y,{F:64,c:HID,bg:BGHID,row:true});
-    o += label(552,y+BH+22,"out","(B, 50, 64)","float32  ·  one h_t per step",HID);
-    o += T(40,290,"The step axis survives; the depth changes from 41 inputs to 64 hidden values. For the marked user, positions "+LEN+" to 49 (zero-indexed) are computed",{s:10.5,f:"var(--ink-3)"});
-    o += T(40,306,"from pad inputs: 6.2 shows the state keeps moving through them, and the next line is what makes that not matter.",{s:10.5,f:"var(--ink-3)"});
+    let o = code(14,"packed = pack_padded_sequence(features, lengths.detach().cpu(), batch_first=True, enforce_sorted=False)");
+    const y = 116;
+    o += tensor(42,y,{F:37,c:XIN,bg:BGX,row:true,dim:true});
+    o += label(42,y+BH+22,"features","(B, 50, 37)","float32 · rectangular, still padded",XIN,{dim:true});
+    o += arrow(224,278,y+50,"pack");
+    o += opbox(286,y-16,210,136,[["pack_padded_sequence",11.5,HID],["no learned parameters"],["lengths read on CPU",10.5,"var(--ink-3)"],["internal sort allowed",10.5,"var(--ink-3)"],["all pad positions removed",10.5,"var(--ink-3)"]],HID);
+    o += arrow(504,554,y+50,"");
+    o += B(562,y-4,250,108,{f:"var(--hidden-bg)",st:HID,sw:1.5,r:7});
+    o += T(687,y+22,"PackedSequence",{s:12,a:"middle",f:HID,w:"700"});
+    o += T(687,y+48,"data: (Σ lengths, 37)",{s:11,a:"middle",f:"var(--ink-2)"});
+    o += T(687,y+67,"batch_sizes: users alive at each t",{s:10,a:"middle",f:"var(--ink-3)"});
+    o += T(687,y+86,"no cells for right padding",{s:10,a:"middle",f:"var(--ink-3)"});
+    const zy = 286, cw = 15;
+    o += HD(42,zy-17,"THIS USER: WHAT PACKING KEEPS");
+    o += strip(65,zy,cw,18,t => t < LEN ? {bg:BGX,st:XIN} : {bg:"var(--surface)",st:"var(--rule-2)",d:"3 2"});
+    o += T(65,zy+34,"12 real 37-number events enter the LSTM",{s:10.5,f:HID,w:"700"});
+    o += T(65+LEN*cw+12,zy+34,"38 padded events have no packed entry and no recurrent step",{s:10.5,f:"var(--ink-3)"});
     return o;
   }
 
-  /* ---- 6 : last real step ---- */
+  /* ---- 6 : packed LSTM and final hidden state ---- */
   function s6(){
-    let o = code(14,"last = out[torch.arange(out.size(0), device=out.device), lengths - 1]   # -> (B, 64)");
-    const y = 120;
-    /* a few of the 256 rows, each with its own picked column; the marked user at offset ROWY with column LEN-1 */
-    const ROWS = [[6,50],[13,27],[20,8],[27,41],[ROWY,LEN],[43,33],[50,5],[57,19],[64,46],[71,3],[78,29],[85,38],[92,15]];
-    o += tensor(60,y,{F:64,c:HID,bg:BGHID,inner:(x,yy,w,h) => {
-      let s = "";
-      ROWS.forEach(r => {
-        const px = x + (r[1]-1)*(w/50), mk = r[0]===ROWY;
-        s += L(x+1,yy+r[0],x+w-1,yy+r[0],{c:HID,w:mk ? 2 : 0.8,op:mk ? 1 : 0.45});
-        s += B(px, yy+r[0]-(mk ? 5 : 3), w/50, mk ? 10 : 6,{f:HID,r:1});
-      });
-      return s;
-    }});
-    o += label(60,y+BH+22,"out","(B, 50, 64)","float32",HID);
-    o += T(60,y-50,"each row keeps one column: its own lengths − 1",{s:10,f:"var(--ink-3)"});
-    o += T(60,y+BH+54,"thick row = this user, column "+(LEN-1)+" picked",{s:10,f:HID,w:"700"});
-    o += arrow(268,346,y+50,"gather");
-    o += tensor(360,y,{w:192,c:HID,bg:BGHID,row:true});
-    o += label(360,y+BH+22,"last","(B, 64)","float32  ·  the step axis is gone",HID);
-    o += T(360+96,y-8,"64 wide, no steps",{s:10,a:"middle",f:"var(--ink-3)"});
-    /* what was not picked */
-    o += B(590,y,250,BH,{f:"var(--surface-2)",st:"var(--rule-2)",r:6,d:"4 3"});
-    o += T(604,y+22,"not column 49",{s:11.5,f:"var(--forget)",w:"700"});
-    o += T(604,y+40,"for this user that state has been",{s:10,f:"var(--ink-2)"});
-    o += T(604,y+54,"through "+(50-LEN)+" pad steps, each of which",{s:10,f:"var(--ink-2)"});
-    o += T(604,y+68,"moved C and h (6.2). Packing (6.3,",{s:10,f:"var(--ink-2)"});
-    o += T(604,y+82,"fix 1) gives the identical vector.",{s:10,f:"var(--ink-2)"});
-    /* zoom on the marked user's row of out */
-    const zy = 296, cw = 15;
-    o += T(65,zy-7,"out[this user]  —  50 hidden states of 64 numbers; only column "+(LEN-1)+" is kept",{s:10.5,f:"var(--ink-2)"});
-    o += strip(65,zy,cw,18,t => t === LEN-1 ? {bg:HID,st:HID,sw:1.5} : t < LEN ? {bg:BGHID,st:HID} : {bg:"var(--surface)",st:"var(--rule-2)",d:"3 2"});
-    o += T(65+cw/2,zy+32,"0",{s:10,a:"middle",f:"var(--ink-3)"});
-    o += T(65+(LEN-1)*cw+cw/2,zy+32,(LEN-1)+" = len − 1",{s:10,a:"middle",f:HID,w:"700"});
-    o += T(65+(LEN+19)*cw,zy+32,"states after pad inputs: computed, then discarded",{s:10,a:"middle",f:"var(--ink-3)"});
-    o += T(65+49*cw+cw/2,zy+32,"49",{s:10,a:"middle",f:"var(--forget)",w:"700"});
+    let o = code(14,"_, (hidden, _) = self.lstm(packed)         # hidden: (1, B, 64)");
+    const y = 112;
+    o += B(42,y,176,104,{f:"var(--hidden-bg)",st:HID,sw:1.4,r:7});
+    o += T(130,y+27,"PackedSequence",{s:11,a:"middle",f:HID,w:"700"});
+    o += T(130,y+50,"Σ lengths real events",{s:10,a:"middle",f:"var(--ink-2)"});
+    o += T(130,y+70,"37 values per event",{s:10,a:"middle",f:"var(--ink-3)"});
+    o += arrow(220,280,y+52,"");
+    o += opbox(288,y-18,190,140,[["nn.LSTM(37, 64)",12,CAT],["26,368 parameters"],["six equations per real event",10.5,"var(--ink-3)"],["each row stops at its length",10.5,"var(--ink-3)"],["returns final h and C",10.5,"var(--ink-3)"]],CAT);
+    o += arrow(486,544,y+52,"");
+    o += tensor(552,y,{w:180,F:64,c:HID,bg:BGHID,row:true});
+    o += label(552,y+BH+22,"hidden","(1, B, 64)","one layer · final h per user",HID);
+    o += T(42,276,"hidden[-1] selects layer 0 and removes the layer axis:",{s:10.5,f:"var(--ink-3)"});
+    o += tensor(430,258,{w:220,c:HID,bg:BGHID,row:true});
+    o += label(430,258+BH+22,"hidden[-1]","(B, 64)","this user's row ends immediately after event 12",HID);
     return o;
   }
 
-  /* ---- 7 : head ---- */
+  /* ---- 7 : classifier ---- */
   function s7(){
-    let o = code(14,"return self.head(self.drop(last)).squeeze(-1)   # -> (B,)  raw logits");
+    let o = code(14,"return self.classifier(hidden[-1]).squeeze(-1)   # (B,) logits");
     const y = 104, yc = y + 50;
-    o += tensor(40,y,{w:150,c:HID,bg:BGHID,row:true,dim:true});
-    o += label(40,y+BH+22,"last","(B, 64)","float32",HID,{dim:true});
-    o += arrow(192,238,yc,"");
-    o += T(215,yc-10,"Dropout",{s:10,a:"middle",f:"var(--ink-3)"}); o += T(215,yc+18,"(0.2)",{s:10,a:"middle",f:"var(--ink-3)"});
-    /* the same (B, 64) with a random fifth of its entries zeroed */
-    seed = 7;
-    o += tensor(240,y,{w:150,c:HID,bg:BGHID,row:true,inner:(x,yy,w,h) => {
-      let s = "";
-      const cols = 32, rows = 20, cw = w/cols, ch = h/rows;
-      for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) if(rnd() < 0.2) s += B(x+c*cw+0.5, yy+r*ch+0.5, cw-1, ch-1,{f:"var(--ink-3)",r:0.5,op:0.55});
-      return s;
-    }});
-    o += label(240,y+BH+22,"drop(last)","(B, 64)","float32  ·  20% zeroed, training only",HID);
-    o += arrow(396,488,yc,"Linear(64, 1)");
-    o += tensor(496,y,{w:14,c:CAT,bg:BGC,row:true});
-    o += label(503,y+BH+22,"head","(B, 1)","float32",CAT,{a:"middle"});
-    o += arrow(516,600,yc,"squeeze(-1)");
-    o += tensor(606,y,{w:10,c:CAT,bg:BGC,row:true});
-    o += label(611,y+BH+22,"z","(B,)","logits",CAT,{a:"middle"});
-    o += arrow(622,742,yc,"");
-    o += T(682,yc-10,"σ",{s:11,a:"middle",f:"var(--ink-3)"}); o += T(682,yc+18,"inference only",{s:9.5,a:"middle",f:"var(--ink-3)"});
+    o += tensor(42,y,{w:210,c:HID,bg:BGHID,row:true});
+    o += label(42,y+BH+22,"hidden[-1]","(B, 64)","float32 · final real state",HID);
+    o += arrow(258,420,yc,"Linear(64, 1)");
+    o += tensor(430,y,{w:14,c:CAT,bg:BGC,row:true});
+    o += label(437,y+BH+22,"classifier","(B, 1)","64 weights + 1 bias",CAT,{a:"middle"});
+    o += arrow(452,582,yc,"squeeze(-1)");
+    o += tensor(590,y,{w:10,c:CAT,bg:BGC,row:true});
+    o += label(595,y+BH+22,"z","(B,)","raw logits",CAT,{a:"middle"});
+    o += arrow(606,742,yc,"");
+    o += T(675,yc-10,"σ",{s:11,a:"middle",f:"var(--ink-3)"});
+    o += T(675,yc+18,"evaluate / inference",{s:9.5,a:"middle",f:"var(--ink-3)"});
     o += tensor(748,y,{w:10,c:"var(--output)",bg:"var(--output-bg)",row:true});
-    o += label(753,y+BH+22,"p","(B,)","in (0, 1)","var(--output)",{a:"middle"});
-    o += T(790,y+ROWY+4,"← this user",{s:10,f:"var(--output)",w:"700"});
-    /* the marked user's 64 numbers through the head */
-    const zy = 290, cw = 11, drop = [];
-    seed = 11; for(let i=0;i<64;i++) drop.push(rnd() < 0.2);
-    const nd = drop.filter(Boolean).length;
-    o += HD(40,zy-14,"THIS USER'S 64 NUMBERS, ON ONE TRAINING STEP");
-    for(let i=0;i<64;i++) o += B(60+i*cw, zy, cw-2, 16,{f:drop[i] ? "var(--surface-2)" : BGHID, st:drop[i] ? "var(--rule-2)" : HID, sw:1, r:2, d:drop[i] ? "2 2" : null});
-    o += T(60,zy+32,"z = w·drop(last) + b   —   64 weights and one bias, "+nd+" of the 64 inputs zeroed on this step, a different random "+nd+" on the next step; the survivors are scaled by 1 / 0.8 = 1.25",{s:10.5,f:"var(--ink-2)"});
-    o += T(60,zy+48,"p = σ(z) is not in forward(): in training BCEWithLogitsLoss applies it internally (0.8); at inference you apply it yourself.",{s:10.5,f:"var(--ink-3)"});
+    o += label(753,y+BH+22,"p","(B,)","probabilities", "var(--output)",{a:"middle"});
+    o += HD(42,276,"WHAT THE CURRENT FORWARD METHOD DOES — AND DOES NOT — CONTAIN");
+    o += B(42,292,370,54,{f:"var(--hidden-bg)",st:HID,r:7});
+    o += T(58,314,"implemented: packed final state → Linear(64, 1) → squeeze",{s:10.5,f:HID,w:"700"});
+    o += T(58,332,"the forward method returns logits",{s:10,f:"var(--ink-2)"});
+    o += B(430,292,408,54,{f:"var(--surface-2)",st:"var(--rule-2)",r:7});
+    o += T(446,314,"not in model.forward: dropout or sigmoid",{s:10.5,f:"var(--ink-2)",w:"700"});
+    o += T(446,332,"BCEWithLogitsLoss / evaluate applies the probability transform",{s:10,f:"var(--ink-3)"});
     return o;
   }
 
@@ -5258,26 +5347,26 @@ function staged(prefix, STAGES, opts){
      alt:"cats (B, 50) passing through a 6964 by 32 embedding table and coming out as c with shape (B, 50, 32), drawn with depth.",
      ttl:"A lookup table turns each index into 32 numbers",
      cap:"<span class=\"m\">nn.Embedding(6964, 32)</span> is a <span class=\"m\">(6964, 32)</span> table of weights, 222,848 of them, and indexing it is the whole operation: every integer in <span class=\"m\">cats</span> is replaced by the row it names (0.6 shows why this is a matrix multiply with the pointless part removed). The tensor gains a third axis of size 32, so the shape goes from <span class=\"m\">(B, 50)</span> to <span class=\"m\">(B, 50, 32)</span> and the dtype from <span class=\"m\">int64</span> to <span class=\"m\">float32</span>. <span class=\"m\">padding_idx=0</span> pins row 0 at zero and never updates it, so all 38 pad steps of the marked user become 32 zeros each."},
-    {tab:"3 · beh_emb + hours", vb:"0 0 880 412", fn:s3,
-     alt:"behs passing through a 5 by 8 table to become b (B, 50, 8), and hours gaining a trailing axis to become h (B, 50, 1).",
+    {tab:"3 · behavior + hours", vb:"0 0 880 412", fn:s3,
+     alt:"behs passing through a 5 by 4 table to become behavior vectors (B, 50, 4), and hours gaining a trailing axis to become (B, 50, 1).",
      ttl:"Behaviour gets a tiny table; hours need none",
-     cap:"The behaviour table has five rows &mdash; pad, pv, cart, fav, buy &mdash; and 8 columns, 40 parameters in all, and turns <span class=\"m\">behs</span> into <span class=\"m\">(B, 50, 8)</span> by the same lookup. The scaled hours are the one input that already means something as a number, so there is nothing to look up; <span class=\"m\">unsqueeze(-1)</span> just adds a trailing axis of size 1, <span class=\"m\">(B, 50) &rarr; (B, 50, 1)</span>, so that all three tensors have the same number of axes. That matters for the next line, which can only join tensors that agree on every axis except the one being joined."},
-    {tab:"4 · cat", vb:"0 0 880 350", fn:s4,
-     alt:"The three blocks c, b and h stacked along the depth direction, and the result x drawn as one block whose 41-deep side is split into slabs of 32, 8 and 1.",
-     ttl:"Concatenate along the last axis: 32 + 8 + 1 = 41",
-     cap:"<span class=\"m\">torch.cat(&hellip;, dim=-1)</span> lays the three feature blocks end to end along the depth axis. <span class=\"m\">B</span> and 50 must match, and do; the last axis simply adds up, 32 + 8 + 1 = 41. Concatenated rather than summed, because category, behaviour and age are unrelated kinds of information and nothing is gained by forcing them into one shared space. The result is <span class=\"m\">x</span>, <span class=\"m\">(B, 50, 41)</span> &mdash; and <span class=\"m\">x[u, t]</span>, one 41-number slice of it, is exactly the <span class=\"m\">x<sub>t</sub></span> that every equation in Part 4 takes as input."},
-    {tab:"5 · lstm", vb:"0 0 880 320", fn:s5,
-     alt:"x (B, 50, 41) entering an LSTM box and leaving as out (B, 50, 64), drawn deeper.",
-     ttl:"Fifty steps of the six equations, for every row at once",
-     cap:"<span class=\"m\">nn.LSTM(41, 64)</span> owns 27,392 parameters: four gates, each a weighted sum over the 41 inputs and the 64 previous hidden values, plus biases. Per row it runs the six equations from 4.7 fifty times, threading <span class=\"m\">C</span> and <span class=\"m\">h</span> from one step to the next, and writes <span class=\"m\">h<sub>t</sub></span> into <span class=\"m\">out[:, t]</span>. So the output keeps the step axis but the feature depth changes from 41 to 64: <span class=\"m\">(B, 50, 64)</span>. For the marked user, steps 12 to 49 are computed from pad inputs and are wasted &mdash; 6.2 explains why they are not harmless, and the next line is what makes that not matter."},
-    {tab:"6 · last real step", vb:"0 0 880 344", fn:s6,
-     alt:"The out block with one picked column marked per row, column 11 for the marked user, gathered into last (B, 64); below, the user's 50 states with column 11 highlighted and 12 to 49 dashed.",
-     ttl:"Read each row at its own last real step",
-     cap:"<span class=\"m\">out[arange(B), lengths &minus; 1]</span> pairs row <span class=\"m\">u</span> with column <span class=\"m\">lengths[u] &minus; 1</span> &mdash; column 11 for the marked user, a different column for every other row &mdash; and pulls out one 64-vector each. The step axis is gone: <span class=\"m\">(B, 64)</span>. Column 49 would be wrong for this user because the state there has been through 38 pad steps, each of which moved <span class=\"m\">C</span> and <span class=\"m\">h</span> (6.2); packing (6.3, fix 1) gives an identical answer by never running those steps at all. This vector is the model&rsquo;s entire summary of the user."},
-    {tab:"7 · head", vb:"0 0 880 350", fn:s7,
-     alt:"last (B, 64) through dropout, then a Linear layer collapsing it to (B, 1), squeezed to (B,) logits, with the sigmoid marked as inference only; below, one user's 64 numbers with a fifth of them greyed out.",
-     ttl:"Dropout, one linear layer, and a sigmoid that lives elsewhere",
-     cap:"<span class=\"m\">Dropout(0.2)</span> zeroes a random fifth of the 64 numbers and scales the survivors by 1.25 so their total stays comparable &mdash; in training only; at inference it is the identity &mdash; and the shape is unchanged. <span class=\"m\">Linear(64, 1)</span> is 64 weights and a bias: one weighted sum collapses each row to a single raw score, <span class=\"m\">(B, 1)</span>, and <span class=\"m\">squeeze(-1)</span> drops the size-1 axis to give <span class=\"m\">(B,)</span> logits. Note what is not here: no sigmoid. In training the loss is <span class=\"m\">BCEWithLogitsLoss</span>, which applies it internally on the raw score for numerical stability (0.8); at inference you call <span class=\"m\">&sigma;</span> yourself, as step 5 above says, to get the probability."}
+     cap:"The implemented behaviour table has five rows &mdash; pad, pv, cart, fav, buy &mdash; and 4 columns, 20 parameters in all, and turns <span class=\"m\">behs</span> into <span class=\"m\">(B, 50, 4)</span>. The scaled hours already mean something as numbers, so <span class=\"m\">unsqueeze(-1)</span> only adds a trailing axis: <span class=\"m\">(B, 50) &rarr; (B, 50, 1)</span>. Now all three feature tensors have the same axes and can be joined."},
+    {tab:"4 · concatenate", vb:"0 0 880 350", fn:s4,
+     alt:"The category, behavior and hour blocks stacked along the depth direction, and the result features drawn as one 37-deep block split into slabs of 32, 4 and 1.",
+     ttl:"Concatenate along the last axis: 32 + 4 + 1 = 37",
+     cap:"<span class=\"m\">torch.cat(&hellip;, dim=-1)</span> lays the three feature blocks end to end. <span class=\"m\">B</span> and 50 match; the last axis adds up, 32 + 4 + 1 = 37. The result is <span class=\"m\">features</span>, shape <span class=\"m\">(B, 50, 37)</span>, and <span class=\"m\">features[u, t]</span> is exactly the 37-number <span class=\"m\">x<sub>t</sub></span> used by the Part 4 equations."},
+    {tab:"5 · pack", vb:"0 0 880 338", fn:s5,
+     alt:"Padded features (B, 50, 37) passing through pack_padded_sequence and becoming a PackedSequence containing only the sum of all real events.",
+     ttl:"Packing removes every pad before recurrence",
+     cap:"<span class=\"m\">pack_padded_sequence</span> converts the rectangle into a <span class=\"m\">PackedSequence</span>. Its data contains <span class=\"m\">sum(lengths)</span> real event vectors, each 37 wide, plus <span class=\"m\">batch_sizes</span> telling the recurrent kernel how many users remain active at each step. <span class=\"m\">lengths.detach().cpu()</span> satisfies PyTorch&rsquo;s CPU-length requirement; <span class=\"m\">enforce_sorted=False</span> handles the DataLoader&rsquo;s arbitrary row order. For the marked user, exactly 12 events remain and all 38 pads disappear."},
+    {tab:"6 · LSTM", vb:"0 0 880 390", fn:s6,
+     alt:"A PackedSequence entering nn.LSTM(37, 64), producing hidden with shape (1, B, 64), then selecting hidden[-1] to get (B, 64).",
+     ttl:"The LSTM stops each row at its own real length",
+     cap:"<span class=\"m\">nn.LSTM(37, 64)</span> owns 26,368 parameters and runs the six equations from 4.7 only for packed real events. It returns the final hidden state as <span class=\"m\">hidden</span>, shape <span class=\"m\">(1, B, 64)</span>: one layer, B users, 64 values. <span class=\"m\">hidden[-1]</span> selects that layer and gives <span class=\"m\">(B, 64)</span>. The marked user&rsquo;s row is the state immediately after event 12 because no padding step was executed."},
+    {tab:"7 · classifier", vb:"0 0 880 360", fn:s7,
+     alt:"hidden[-1] with shape (B, 64) passing directly through Linear(64, 1), squeezing to (B,) logits, and sigmoid shown outside forward for evaluation or inference.",
+     ttl:"One linear classifier; sigmoid lives outside forward",
+     cap:"The current model sends <span class=\"m\">hidden[-1]</span> directly through <span class=\"m\">Linear(64, 1)</span> &mdash; 64 weights and one bias &mdash; then removes the size-1 axis to return <span class=\"m\">(B,)</span> logits. There is no dropout in the implemented model and no sigmoid in <span class=\"m\">forward()</span>. During training, <span class=\"m\">BCEWithLogitsLoss</span> consumes the raw logits; <span class=\"m\">train.evaluate()</span> applies <span class=\"m\">torch.sigmoid</span>, then delegates overall AUC, log loss and three length-bucket AUCs to <span class=\"m\">evaluation.py</span>."}
   ];
 
   staged("shp", STAGES);

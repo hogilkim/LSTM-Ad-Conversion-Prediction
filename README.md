@@ -80,7 +80,9 @@ device, worker, optimization, and model-size settings.
 
 ## Results
 
-| Model | Split | AUC | Log loss |
-|-------|-------|-----|----------|
-| Logistic regression baseline | TBD | TBD | TBD |
-| LSTM | TBD | TBD | TBD |
+<!-- results-table:start -->
+| Model | Split | AUC | Log loss | AUC (seq_len 3-10) | AUC (seq_len 11-30) | AUC (seq_len 31-50) |
+|-------|-------|-----|----------|--------------------|---------------------|---------------------|
+| Logistic regression baseline | TBD | TBD | TBD | TBD | TBD | TBD |
+| LSTM | TBD | TBD | TBD | TBD | TBD | TBD |
+<!-- results-table:end -->

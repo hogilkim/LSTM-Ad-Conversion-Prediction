@@ -54,6 +54,25 @@ Immediate next work, following the plan in `CLAUDE.md`:
 5. Add a FastAPI endpoint with offline/online encoding parity, then measure latency and
    add Docker packaging.
 
+## Next session: shared evaluation metrics
+
+Implement only the first roadmap item before starting the baseline:
+
+- Create one model-agnostic evaluation path that accepts labels, probabilities, and
+  sequence lengths so the future baseline and the LSTM use identical metric code.
+- Return overall AUC and log loss, plus AUC for sequence-length buckets 3-10, 11-30, and
+  31-50.
+- Add one safe, deterministic path for updating the single README results table.
+- Refactor the current LSTM evaluation code to use the shared metric calculation without
+  changing its training behavior.
+- Add focused tests, including random predictions near 0.50 AUC, bucket boundaries,
+  invalid or empty inputs, and README table updates.
+- Run the full test suite. Do not implement the logistic-regression baseline in this
+  session and do not evaluate the real test split.
+- Do not push to GitHub until the user explicitly says to push.
+- After implementation, walk through every changed file chunk by chunk using concise,
+  iTerm2-friendly plain text.
+
 ## Code conventions
 
 - Use Polars for dataframe work and Parquet for processed tabular artifacts.

@@ -20,13 +20,13 @@ from typing import Any
 
 import numpy as np
 import torch
-from sklearn.metrics import log_loss, roc_auc_score
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader, Dataset
 
 from taobao.data.dataset import TensorSplitDataset
 from taobao.data.tensors import DEFAULT_OUT_DIR
+from taobao.evaluation import EvaluationMetrics, evaluate as evaluate_predictions
 from taobao.model import ConversionLSTM
 
 DEFAULT_VOCAB_SIZES = Path("data/processed/vocab_sizes.json")
@@ -71,12 +71,6 @@ class TrainingConfig:
             raise ValueError("learning_rate must be positive")
         if self.num_workers < 0:
             raise ValueError("num_workers cannot be negative")
-
-
-@dataclass(frozen=True)
-class EvaluationMetrics:
-    auc: float
-    log_loss: float
 
 
 @dataclass(frozen=True)
@@ -202,29 +196,32 @@ def evaluate(
     data_loader: DataLoader[dict[str, torch.Tensor]],
     device: torch.device,
 ) -> EvaluationMetrics:
-    """Calculate AUC and probabilistic log loss for one complete split."""
+    """Collect model predictions for a split and calculate the shared metrics."""
     was_training = model.training
     model.eval()
     labels: list[np.ndarray] = []
     probabilities: list[np.ndarray] = []
-    with torch.inference_mode():
-        for cpu_batch in data_loader:
-            batch = _move_batch(cpu_batch, device)
-            logits = model(
-                batch["cats"], batch["behs"], batch["hours"], batch["lengths"]
-            )
-            labels.append(batch["labels"].detach().cpu().numpy())
-            probabilities.append(torch.sigmoid(logits).detach().cpu().numpy())
-    if was_training:
-        model.train()
+    sequence_lengths: list[np.ndarray] = []
+    try:
+        with torch.inference_mode():
+            for cpu_batch in data_loader:
+                batch = _move_batch(cpu_batch, device)
+                logits = model(
+                    batch["cats"], batch["behs"], batch["hours"], batch["lengths"]
+                )
+                labels.append(batch["labels"].detach().cpu().numpy())
+                probabilities.append(torch.sigmoid(logits).detach().cpu().numpy())
+                sequence_lengths.append(batch["lengths"].detach().cpu().numpy())
+    finally:
+        if was_training:
+            model.train()
     if not labels:
         raise ValueError("cannot evaluate an empty dataset")
 
-    all_labels = np.concatenate(labels)
-    all_probabilities = np.concatenate(probabilities)
-    return EvaluationMetrics(
-        auc=float(roc_auc_score(all_labels, all_probabilities)),
-        log_loss=float(log_loss(all_labels, all_probabilities, labels=[0.0, 1.0])),
+    return evaluate_predictions(
+        np.concatenate(labels),
+        np.concatenate(probabilities),
+        np.concatenate(sequence_lengths),
     )
 
 

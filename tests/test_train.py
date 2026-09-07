@@ -9,9 +9,9 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
 import taobao.train as training
+from taobao.evaluation import EvaluationMetrics
 from taobao.model import ConversionLSTM
 from taobao.train import (
-    EvaluationMetrics,
     ModelConfig,
     TrainingConfig,
     evaluate,
@@ -22,9 +22,11 @@ from taobao.train import (
 
 class DictDataset(Dataset[dict[str, torch.Tensor]]):
     def __init__(self) -> None:
-        self.cats = torch.tensor([[1, 0], [2, 0], [3, 0], [4, 0]])
-        self.behs = torch.tensor([[1, 0], [1, 0], [2, 0], [2, 0]])
-        self.hours = torch.tensor([[-2.0, 0.0], [-1.0, 0.0], [1.0, 0.0], [2.0, 0.0]])
+        self.cats = torch.tensor([[1, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 0]])
+        self.behs = torch.tensor([[1, 0, 0], [1, 0, 0], [2, 0, 0], [2, 0, 0]])
+        self.hours = torch.tensor(
+            [[-2.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]]
+        )
         self.labels = torch.tensor([0.0, 0.0, 1.0, 1.0])
 
     def __len__(self) -> int:
@@ -35,7 +37,7 @@ class DictDataset(Dataset[dict[str, torch.Tensor]]):
             "cats": self.cats[index],
             "behs": self.behs[index],
             "hours": self.hours[index],
-            "lengths": torch.tensor(1),
+            "lengths": torch.tensor(3),
             "labels": self.labels[index],
         }
 
@@ -58,6 +60,11 @@ def test_evaluate_calculates_auc_and_log_loss_and_restores_mode() -> None:
         np.log([1 - probabilities[0], 1 - probabilities[1], probabilities[2], probabilities[3]])
     )
     assert metrics.log_loss == pytest.approx(expected)
+    assert metrics.auc_by_sequence_length == {
+        "3-10": 1.0,
+        "11-30": None,
+        "31-50": None,
+    }
     assert model.training
 
 
