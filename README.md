@@ -75,8 +75,42 @@ It uses seed 42, batch size 256, Adam, and at most 15 epochs by default. Trainin
 shuffled; validation and test data are not. Validation AUC selects the checkpoint in
 `models/conversion_lstm_best.pt`, with early stopping after three epochs without an AUC
 improvement. The test split is loaded only after training, and is evaluated exactly once
-with the restored best checkpoint. Run `uv run python -m taobao.train --help` for optional
-device, worker, optimization, and model-size settings.
+with the restored best checkpoint. Pass `--skip-test` to never open the test split, which
+is the setting used while tuning on validation. Run `uv run python -m taobao.train --help`
+for optional device, worker, optimization, and model-size settings.
+
+### Tuning
+
+Bounded to four runs, varying only the learning rate and the category embedding
+dimension, with every other setting at its default (seed 42, batch size 256, hidden size
+64, patience 3). Each run has its own checkpoint. Wall time is the trainer's own clock,
+which excludes time the machine spends asleep; run 3 additionally took 49.9 min by the
+outer clock because the Mac slept mid-run. Run 1's wall time was not recorded. Epoch-level
+logs are in `models/tuning_logs/` (gitignored). Validation AUC moved by up to 0.005
+between neighbouring epochs of the same run, so differences of that size between runs are
+within noise.
+
+| Run | Learning rate | Category dim | Best epoch | Stopped at | Val AUC | Val log loss | Wall time | Checkpoint |
+|-----|---------------|--------------|------------|------------|---------|--------------|-----------|------------|
+| 1 | 1e-3 | 32 | 2 | not recorded | 0.599836 | 0.461043 | not recorded | `models/conversion_lstm_best.pt` |
+| 2 | 3e-4 | 32 | 5 | 8 | 0.599474 | 0.465478 | 39.2 min | `models/tune_lr3e-4_dim32.pt` |
+| 3 | 1e-3 | 16 | 4 | 7 | 0.597117 | 0.459069 | 36.8 min | `models/tune_lr1e-3_dim16.pt` |
+| 4 | 1e-3 | 64 | 3 | 6 | 0.595198 | 0.462535 | 30.1 min | `models/tune_lr1e-3_dim64.pt` |
+
+Commands, in run order (run 1 is the default command above):
+
+```bash
+uv run python -m taobao.train --learning-rate 3e-4 --category-embedding-dim 32 --checkpoint models/tune_lr3e-4_dim32.pt --skip-test
+uv run python -m taobao.train --learning-rate 1e-3 --category-embedding-dim 16 --checkpoint models/tune_lr1e-3_dim16.pt --skip-test
+uv run python -m taobao.train --learning-rate 1e-3 --category-embedding-dim 64 --checkpoint models/tune_lr1e-3_dim64.pt --skip-test
+```
+
+The default configuration (run 1) stays the selected LSTM, and the LSTM row in the results
+table uses `models/conversion_lstm_best.pt`. The smaller learning rate reached the same AUC
+in five epochs instead of two. Halving the category dimension cost about 0.003 AUC, at the
+edge of noise. Doubling it cost about 0.005 and overfit visibly: train loss kept falling
+from epoch 3 while validation AUC and log loss got worse. None of the four runs was
+scored on the test split.
 
 ## Logistic regression baseline
 

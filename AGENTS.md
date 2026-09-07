@@ -57,28 +57,29 @@ Completed:
   train and scores one split. Validation AUC 0.585718, log loss 0.461970, bucket AUC
   0.549 / 0.586 / 0.598; last-24h cart count alone gives AUC 0.537289. The LSTM leads by
   +0.014 AUC on validation, inside the expected +0.005 to +0.02 range.
+- Bounded LSTM tuning (2026-09-07, CLAUDE.md Step 5): four runs total over learning rate
+  and category embedding dim, recorded in the README tuning table with commands and
+  checkpoints. The default (lr 1e-3, dim 32, `models/conversion_lstm_best.pt`) stays the
+  selected LSTM; lr 3e-4 tied it, dim 16 lost about 0.003 AUC, dim 64 lost about 0.005
+  and overfit. `taobao.train --skip-test` never opens the test split; no tuning run
+  scored test.
 
 Immediate next work, following the plan in `CLAUDE.md`:
 
-1. Run bounded LSTM tuning (at most four runs, learning rate and embedding dim only),
-   then implement mean-pooling, GRU, and item embedding ablations behind one `--model`
-   flag.
+1. Implement mean-pooling, GRU, and item embedding ablations behind one `--model` flag
+   (CLAUDE.md Step 6).
 2. Record final baseline/model/ablation results and caveats in the README, scoring the
    test split exactly once.
 3. Add a FastAPI endpoint with offline/online encoding parity, then measure latency and
    add Docker packaging.
 
-## Next session: bounded LSTM tuning (CLAUDE.md Step 5 only)
+## Next session: ablations (CLAUDE.md Step 6 only)
 
-- Hard cap of four runs total, including the recorded seed-42 default run (learning rate
-  1e-3, category embedding dim 32, validation AUC 0.599836). Run the remaining three:
-  learning rate 3e-4 with dim 32, learning rate 1e-3 with dim 16, learning rate 1e-3 with
-  dim 64. Give each run its own `--checkpoint` path under `models/` so nothing is
-  overwritten. Runs may go in the background.
-- Record each run's exact command, wall time, best epoch and validation AUC in a small
-  tuning table in the README, and state which checkpoint the LSTM results row uses.
-- No new model code. Do not score the test split. Do not start ablations. Do not push
-  until the user says to.
+- Add `--model {lstm,mean,gru}` and an item-embedding option to the trainer; mean pooling
+  must be masked (`(x * mask).sum(1) / lengths`). Train each with the run 1 defaults
+  (lr 1e-3, category dim 32) and `--skip-test`, each with its own `--checkpoint`.
+- Record validation rows through the README results table. Do not score the test split.
+  Do not push until the user says to.
 - Explain each step chunk by chunk, briefly, and wait for the user to confirm
   understanding before moving on. The user has a CS background and is new to ML.
 

@@ -59,6 +59,7 @@ class TrainingConfig:
     patience: int = 3
     device: str = "auto"
     num_workers: int = 0
+    skip_test: bool = False
 
     def __post_init__(self) -> None:
         if not 1 <= self.max_epochs <= MAX_EPOCHS:
@@ -87,7 +88,7 @@ class TrainingResult:
     history: list[EpochMetrics]
     best_epoch: int
     best_validation: EvaluationMetrics
-    test: EvaluationMetrics
+    test: EvaluationMetrics | None
     elapsed_seconds: float
     checkpoint_path: Path
     device: str
@@ -271,7 +272,11 @@ def run_training(
     config: TrainingConfig,
     model_config: ModelConfig | None = None,
 ) -> TrainingResult:
-    """Train on train/validation, restore the best model, then test exactly once."""
+    """Train on train/validation, restore the best model, then test exactly once.
+
+    With ``config.skip_test`` the test split is never opened, which is the right setting
+    while tuning on validation.
+    """
     started = time.perf_counter()
     set_seed(config.seed)
     device = select_device(config.device)
@@ -369,18 +374,20 @@ def run_training(
             break
 
     # The test artifact is deliberately not opened until all model selection is over.
-    checkpoint = load_checkpoint(config.checkpoint_path, device)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    test_dataset = TensorSplitDataset("test", config.tensors_dir)
-    test_loader = make_data_loader(
-        test_dataset,
-        config.batch_size,
-        shuffle=False,
-        device=device,
-        seed=config.seed,
-        num_workers=config.num_workers,
-    )
-    test_metrics = evaluate(model, test_loader, device)
+    test_metrics: EvaluationMetrics | None = None
+    if not config.skip_test:
+        checkpoint = load_checkpoint(config.checkpoint_path, device)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        test_dataset = TensorSplitDataset("test", config.tensors_dir)
+        test_loader = make_data_loader(
+            test_dataset,
+            config.batch_size,
+            shuffle=False,
+            device=device,
+            seed=config.seed,
+            num_workers=config.num_workers,
+        )
+        test_metrics = evaluate(model, test_loader, device)
     elapsed_seconds = time.perf_counter() - started
 
     print(
@@ -388,10 +395,13 @@ def run_training(
         f"best_val_log_loss={best_validation.log_loss:.6f}",
         flush=True,
     )
-    print(
-        f"test_auc={test_metrics.auc:.6f} test_log_loss={test_metrics.log_loss:.6f}",
-        flush=True,
-    )
+    if test_metrics is None:
+        print("test_split=skipped", flush=True)
+    else:
+        print(
+            f"test_auc={test_metrics.auc:.6f} test_log_loss={test_metrics.log_loss:.6f}",
+            flush=True,
+        )
     print(
         f"elapsed_seconds={elapsed_seconds:.1f} checkpoint={config.checkpoint_path}",
         flush=True,
@@ -422,6 +432,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--category-embedding-dim", type=int, default=32)
     parser.add_argument("--behavior-embedding-dim", type=int, default=4)
     parser.add_argument("--hidden-dim", type=int, default=64)
+    parser.add_argument(
+        "--skip-test",
+        action="store_true",
+        help="never open the test split; use while tuning on validation",
+    )
     return parser.parse_args()
 
 
@@ -438,6 +453,7 @@ def main() -> None:
         patience=args.patience,
         device=args.device,
         num_workers=args.num_workers,
+        skip_test=args.skip_test,
     )
     vocab_sizes = load_vocab_sizes(config.vocab_sizes_path)
     model_config = ModelConfig(

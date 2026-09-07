@@ -179,3 +179,40 @@ def test_run_training_stops_on_validation_auc_and_tests_once(tmp_path, monkeypat
         "hidden_dim": 3,
     }
     assert checkpoint["vocab_sizes"] == {"cats": 6, "behaviors": 3, "pad_index": 0}
+
+
+def test_run_training_skip_test_never_opens_test_split(tmp_path, monkeypatch) -> None:
+    for split in ("train", "val"):
+        _write_split(tmp_path, split)
+    vocab_sizes_path = tmp_path / "vocab_sizes.json"
+    vocab_sizes_path.write_text(json.dumps({"cats": 6, "behaviors": 3, "pad_index": 0}))
+    config = TrainingConfig(
+        tensors_dir=tmp_path,
+        vocab_sizes_path=vocab_sizes_path,
+        checkpoint_path=tmp_path / "best.pt",
+        batch_size=2,
+        max_epochs=1,
+        skip_test=True,
+    )
+    model_config = ModelConfig(
+        num_categories=6,
+        num_behaviors=3,
+        category_embedding_dim=2,
+        behavior_embedding_dim=2,
+        hidden_dim=3,
+    )
+    evaluation_calls = []
+
+    def fixed_evaluate(model, data_loader, device):  # noqa: ANN001
+        evaluation_calls.append(data_loader.dataset.split)
+        return EvaluationMetrics(0.80, 0.50)
+
+    monkeypatch.setattr(training, "train_one_epoch", lambda *args: 0.4)
+    monkeypatch.setattr(training, "evaluate", fixed_evaluate)
+
+    result = run_training(config, model_config)
+
+    # No test tensors exist under tmp_path, so opening them would have raised.
+    assert evaluation_calls == ["val"]
+    assert result.test is None
+    assert result.best_epoch == 1
