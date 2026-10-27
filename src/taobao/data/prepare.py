@@ -21,7 +21,8 @@ Pipeline
    ``data/processed/``.
 
 The core logic (:func:`build_vocab`, :func:`build_examples`) is pure and operates on
-in-memory Polars frames so it can be unit-tested on synthetic data.
+in-memory pandas frames so it can be unit-tested on synthetic data. Arrow-backed list
+columns keep the completed sequences compact and preserve their Parquet element types.
 """
 
 from __future__ import annotations
@@ -30,24 +31,28 @@ import argparse
 import json
 import sys
 import time
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
-import polars as pl
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 CST = timezone(timedelta(hours=8))
 """China Standard Time; every date in the dataset and every cutoff is interpreted here."""
 
 RAW_COLUMNS = ["user_id", "item_id", "category_id", "behavior_type", "timestamp"]
-RAW_SCHEMA = {
-    "user_id": pl.Int64,
-    "item_id": pl.Int64,
-    "category_id": pl.Int64,
-    "behavior_type": pl.String,
-    "timestamp": pl.Int64,
+RAW_DTYPES = {
+    "user_id": "int64",
+    "item_id": "int64",
+    "category_id": "int64",
+    "behavior_type": "string[pyarrow]",
+    "timestamp": "int64",
 }
+DEFAULT_CHUNK_SIZE = 1_000_000
 
 PAD_INDEX = 0
 RARE_INDEX = 1
@@ -63,6 +68,18 @@ SPLIT_NAMES = {SPLIT_TRAIN: "train", SPLIT_VAL: "val", SPLIT_TEST: "test"}
 
 SECONDS_PER_HOUR = 3600
 LABEL_WINDOW_SECONDS = 24 * SECONDS_PER_HOUR
+
+EXAMPLE_DTYPES = {
+    "user_id": "int64",
+    "cutoff": "int32",
+    "split": "int8",
+    "items": pd.ArrowDtype(pa.large_list(pa.field("element", pa.int32()))),
+    "cats": pd.ArrowDtype(pa.large_list(pa.field("element", pa.int32()))),
+    "behs": pd.ArrowDtype(pa.large_list(pa.field("element", pa.int8()))),
+    "hours": pd.ArrowDtype(pa.large_list(pa.field("element", pa.float32()))),
+    "label": "int8",
+    "seq_len": "int32",
+}
 
 
 class Cutoff(NamedTuple):
@@ -101,53 +118,82 @@ def validation_cutoff(cutoffs: list[Cutoff]) -> Cutoff:
 # --------------------------------------------------------------------------------------
 
 
-def scan_raw(path: Path) -> pl.LazyFrame:
-    return pl.scan_csv(path, has_header=False, schema=RAW_SCHEMA)
+def scan_raw(
+    path: Path,
+    *,
+    columns: list[str] | None = None,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+) -> Iterator[pd.DataFrame]:
+    """Read bounded CSV chunks, optionally parsing only the requested columns."""
+    with pd.read_csv(
+        path,
+        header=None,
+        names=RAW_COLUMNS,
+        usecols=columns,
+        dtype=RAW_DTYPES,
+        chunksize=chunk_size,
+        engine="c",
+    ) as reader:
+        yield from reader
 
 
-def in_window_expr(start: datetime = WINDOW_START, end: datetime = WINDOW_END) -> pl.Expr:
+def in_window_mask(
+    timestamps: pd.Series,
+    start: datetime = WINDOW_START,
+    end: datetime = WINDOW_END,
+) -> pd.Series:
+    """Select timestamps in the half-open interval [start, end)."""
     lo, hi = int(start.timestamp()), int(end.timestamp())
-    return (pl.col("timestamp") >= lo) & (pl.col("timestamp") < hi)
+    return (timestamps >= lo) & (timestamps < hi)
 
 
-def load_sampled_events(path: Path, n_users: int, seed: int) -> tuple[pl.DataFrame, dict]:
-    """Two streaming passes over the CSV.
+def load_sampled_events(
+    path: Path,
+    n_users: int,
+    seed: int,
+    *,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+) -> tuple[pd.DataFrame, dict]:
+    """Two chunked pandas passes over the CSV.
 
-    Pass 1 counts rows per user (total and inside the time window) so we know the junk
-    row count and the set of users with valid events. Pass 2 collects every in-window
-    event of the ``n_users`` sampled users. Returns the events and a dict of counts.
+    Pass 1 counts total/valid rows and collects users with valid events. Pass 2 retains
+    every in-window event of the sampled users. The retained events still live in memory.
     """
-    lf = scan_raw(path)
-    in_window = in_window_expr()
+    total_rows = kept_rows = 0
+    eligible_users: set[int] = set()
+    for chunk in scan_raw(path, columns=["user_id", "timestamp"], chunk_size=chunk_size):
+        valid = in_window_mask(chunk["timestamp"])
+        total_rows += len(chunk)
+        kept_rows += int(valid.sum())
+        eligible_users.update(chunk.loc[valid, "user_id"].unique())
 
-    per_user = (
-        lf.group_by("user_id")
-        .agg(pl.len().alias("n_rows"), in_window.sum().alias("n_in_window"))
-        .collect(engine="streaming")
-    )
-    total_rows = int(per_user["n_rows"].sum())
-    kept_rows = int(per_user["n_in_window"].sum())
-    users = per_user.filter(pl.col("n_in_window") > 0)["user_id"].sort().to_numpy()
+    # Sort before sampling so file order and chunk boundaries cannot change the cohort.
+    users = np.array(sorted(eligible_users), dtype=np.int64)
     if n_users > len(users):
         raise ValueError(f"asked for {n_users} users but only {len(users)} have in-window events")
 
     rng = np.random.default_rng(seed)
     sampled = np.sort(rng.choice(users, size=n_users, replace=False))
 
-    sampled_users = pl.LazyFrame({"user_id": sampled}, schema={"user_id": pl.Int64})
-    events = (
-        lf.filter(in_window)
-        .join(sampled_users, on="user_id", how="semi")
-        .collect(engine="streaming")
-        .sort(["user_id", "timestamp"], maintain_order=True)
-    )
+    frames: list[pd.DataFrame] = []
+    for chunk in scan_raw(path, chunk_size=chunk_size):
+        keep = in_window_mask(chunk["timestamp"]) & chunk["user_id"].isin(sampled)
+        if keep.any():
+            frames.append(chunk.loc[keep])
+    if frames:
+        events = pd.concat(frames, ignore_index=True)
+    else:
+        events = pd.DataFrame({name: pd.Series(dtype=dtype) for name, dtype in RAW_DTYPES.items()})
+    del frames
+    # Preserve file order for events with the same user and timestamp.
+    events = events.sort_values(["user_id", "timestamp"], kind="stable", ignore_index=True)
     counts = {
         "raw_rows": total_rows,
         "kept_rows": kept_rows,
         "dropped_out_of_window_rows": total_rows - kept_rows,
         "users_with_valid_events": int(len(users)),
         "users_sampled": int(n_users),
-        "sampled_events": int(events.height),
+        "sampled_events": int(len(events)),
     }
     return events, counts
 
@@ -157,52 +203,35 @@ def load_sampled_events(path: Path, n_users: int, seed: int) -> tuple[pl.DataFra
 # --------------------------------------------------------------------------------------
 
 
-def build_vocab(events: pl.DataFrame, column: str, before_timestamp: int, min_count: int) -> dict[int, int]:
+def build_vocab(events: pd.DataFrame, column: str, before_timestamp: int, min_count: int) -> dict[int, int]:
     """Map ids seen at least ``min_count`` times strictly before ``before_timestamp`` to
     contiguous indices starting at :data:`FIRST_VOCAB_INDEX`. Everything else is rare."""
-    counts = (
-        events.filter(pl.col("timestamp") < before_timestamp)
-        .group_by(column)
-        .len()
-        .filter(pl.col("len") >= min_count)
-        .sort(column)
-    )
-    ids = counts[column].to_list()
+    counts = events.loc[events["timestamp"] < before_timestamp, column].value_counts(sort=False)
+    ids = counts.loc[counts >= min_count].sort_index().index
     return {int(i): FIRST_VOCAB_INDEX + k for k, i in enumerate(ids)}
 
 
-def _index_column(events: pl.DataFrame, column: str, vocab: dict[int, int], out: str) -> pl.DataFrame:
-    """Left-join a vocabulary onto ``events``; ids missing from the vocab become rare."""
-    if vocab:
-        lookup = pl.DataFrame(
-            {column: list(vocab.keys()), out: list(vocab.values())},
-            schema={column: pl.Int64, out: pl.Int32},
-        )
-        events = events.join(lookup, on=column, how="left")
-    else:
-        events = events.with_columns(pl.lit(None, dtype=pl.Int32).alias(out))
-    return events.with_columns(pl.col(out).fill_null(RARE_INDEX))
-
-
-def encode_events(events: pl.DataFrame, item_vocab: dict[int, int], cat_vocab: dict[int, int]) -> pl.DataFrame:
+def encode_events(events: pd.DataFrame, item_vocab: dict[int, int], cat_vocab: dict[int, int]) -> pd.DataFrame:
     """Add ``item_idx``, ``cat_idx`` and ``beh_idx`` columns and sort by user and time."""
-    encoded = _index_column(events, "item_id", item_vocab, "item_idx")
-    encoded = _index_column(encoded, "category_id", cat_vocab, "cat_idx")
-    encoded = encoded.with_columns(
-        pl.col("behavior_type").replace_strict(BEHAVIOR_INDEX, return_dtype=pl.Int8).alias("beh_idx")
-    )
-    return encoded.sort(["user_id", "timestamp"], maintain_order=True)
+    encoded = events.copy()
+    encoded["item_idx"] = events["item_id"].map(item_vocab).fillna(RARE_INDEX).astype("int32")
+    encoded["cat_idx"] = events["category_id"].map(cat_vocab).fillna(RARE_INDEX).astype("int32")
+    behaviors = events["behavior_type"].map(BEHAVIOR_INDEX)
+    if behaviors.isna().any():
+        raise ValueError("behavior_type must be one of pv, cart, fav, buy")
+    encoded["beh_idx"] = behaviors.astype("int8")
+    return encoded.sort_values(["user_id", "timestamp"], kind="stable", ignore_index=True)
 
 
 def build_examples(
-    events: pl.DataFrame,
+    events: pd.DataFrame,
     cutoffs: list[Cutoff],
     item_vocab: dict[int, int],
     cat_vocab: dict[int, int],
     max_len: int = 50,
     min_len: int = 3,
     max_hours: float = 168.0,
-) -> pl.DataFrame:
+) -> pd.DataFrame:
     """Build one example per (user, cutoff) from raw events. Pure function.
 
     ``events`` needs the columns ``user_id, item_id, category_id, behavior_type,
@@ -212,56 +241,43 @@ def build_examples(
     fewer than ``min_len`` events before T are skipped.
     """
     encoded = encode_events(events, item_vocab, cat_vocab)
-    frames: list[pl.DataFrame] = []
+    frames: list[pd.DataFrame] = []
     for cutoff in cutoffs:
         t = cutoff.timestamp
-        history = encoded.filter(pl.col("timestamp") < t)  # never at or after T
-        buyers = encoded.filter(
-            (pl.col("timestamp") >= t)
-            & (pl.col("timestamp") < t + LABEL_WINDOW_SECONDS)
-            & (pl.col("behavior_type") == "buy")
-        ).select("user_id").unique()
+        history = encoded.loc[encoded["timestamp"] < t]  # never at or after T
+        buyers = encoded.loc[
+            (encoded["timestamp"] >= t)
+            & (encoded["timestamp"] < t + LABEL_WINDOW_SECONDS)
+            & (encoded["behavior_type"] == "buy"),
+            "user_id",
+        ].unique()
 
-        hours = ((t - pl.col("timestamp")) / SECONDS_PER_HOUR).clip(upper_bound=max_hours).cast(pl.Float32)
-        # ``encoded`` is sorted by (user_id, timestamp) and group_by preserves the order of
-        # rows within each group, so tail(max_len) is the most recent events in time order.
-        examples = (
-            history.group_by("user_id", maintain_order=True)
-            .agg(
-                pl.col("item_idx").tail(max_len).alias("items"),
-                pl.col("cat_idx").tail(max_len).alias("cats"),
-                pl.col("beh_idx").tail(max_len).alias("behs"),
-                hours.tail(max_len).alias("hours"),
-            )
-            .with_columns(pl.col("items").list.len().cast(pl.Int32).alias("seq_len"))
-            .filter(pl.col("seq_len") >= min_len)
-            .with_columns(
-                pl.lit(cutoff.date, dtype=pl.Int32).alias("cutoff"),
-                pl.lit(cutoff.split, dtype=pl.Int8).alias("split"),
-                pl.col("user_id").is_in(buyers["user_id"].implode()).cast(pl.Int8).alias("label"),
-            )
-            .select("user_id", "cutoff", "split", "items", "cats", "behs", "hours", "label", "seq_len")
-        )
-        frames.append(examples)
+        # Rows are sorted by user/time. Keep only the latest events before making lists.
+        history = history.groupby("user_id", sort=False).tail(max_len).copy()
+        if history.empty:
+            continue
+        hours = (t - history["timestamp"].to_numpy()) / SECONDS_PER_HOUR
+        history["hours"] = np.minimum(hours, max_hours).astype(np.float32)
+        examples = history.groupby("user_id", sort=False).agg(
+            items=("item_idx", list),
+            cats=("cat_idx", list),
+            behs=("beh_idx", list),
+            hours=("hours", list),
+        ).reset_index()
+        examples["seq_len"] = examples["items"].map(len)
+        examples = examples.loc[examples["seq_len"] >= min_len].copy()
+        examples["cutoff"] = cutoff.date
+        examples["split"] = cutoff.split
+        examples["label"] = examples["user_id"].isin(buyers)
+        # Compact each cutoff's lists before retaining it for the final concatenation.
+        frames.append(examples.loc[:, list(EXAMPLE_DTYPES)].astype(EXAMPLE_DTYPES))
     if not frames:
         return _empty_examples()
-    return pl.concat(frames)
+    return pd.concat(frames, ignore_index=True)
 
 
-def _empty_examples() -> pl.DataFrame:
-    return pl.DataFrame(
-        schema={
-            "user_id": pl.Int64,
-            "cutoff": pl.Int32,
-            "split": pl.Int8,
-            "items": pl.List(pl.Int32),
-            "cats": pl.List(pl.Int32),
-            "behs": pl.List(pl.Int8),
-            "hours": pl.List(pl.Float32),
-            "label": pl.Int8,
-            "seq_len": pl.Int32,
-        }
-    )
+def _empty_examples() -> pd.DataFrame:
+    return pd.DataFrame({name: pd.Series(dtype=dtype) for name, dtype in EXAMPLE_DTYPES.items()})
 
 
 # --------------------------------------------------------------------------------------
@@ -269,60 +285,52 @@ def _empty_examples() -> pl.DataFrame:
 # --------------------------------------------------------------------------------------
 
 
-def compute_stats(examples: pl.DataFrame) -> dict:
-    per_split = (
-        examples.group_by("split")
-        .agg(
-            pl.len().alias("n_examples"),
-            pl.col("label").sum().alias("n_positive"),
-            pl.col("label").mean().alias("positive_rate"),
-            pl.col("seq_len").mean().alias("mean_seq_len"),
-            pl.col("user_id").n_unique().alias("n_users"),
-        )
-        .sort("split")
+def compute_stats(examples: pd.DataFrame) -> dict:
+    per_split = examples.groupby("split", sort=True).agg(
+        n_examples=("label", "size"),
+        n_positive=("label", "sum"),
+        positive_rate=("label", "mean"),
+        mean_seq_len=("seq_len", "mean"),
+        n_users=("user_id", "nunique"),
     )
-    per_cutoff = (
-        examples.group_by("cutoff")
-        .agg(
-            pl.col("split").first().alias("split"),
-            pl.len().alias("n_examples"),
-            pl.col("label").mean().alias("positive_rate"),
-        )
-        .sort("cutoff")
+    per_cutoff = examples.groupby("cutoff", sort=True).agg(
+        split=("split", "first"),
+        n_examples=("label", "size"),
+        positive_rate=("label", "mean"),
     )
     return {
         "splits": {
-            SPLIT_NAMES[int(r["split"])]: {
-                "split": int(r["split"]),
+            SPLIT_NAMES[int(split)]: {
+                "split": int(split),
                 "n_examples": int(r["n_examples"]),
                 "n_positive": int(r["n_positive"]),
                 "positive_rate": float(r["positive_rate"]),
                 "mean_seq_len": float(r["mean_seq_len"]),
                 "n_users": int(r["n_users"]),
             }
-            for r in per_split.iter_rows(named=True)
+            for split, r in per_split.iterrows()
         },
         "cutoffs": {
-            str(r["cutoff"]): {
+            str(cutoff): {
                 "split": int(r["split"]),
                 "n_examples": int(r["n_examples"]),
                 "positive_rate": float(r["positive_rate"]),
             }
-            for r in per_cutoff.iter_rows(named=True)
+            for cutoff, r in per_cutoff.iterrows()
         },
-        "n_examples": int(examples.height),
+        "n_examples": int(len(examples)),
     }
 
 
 def write_outputs(
     out_dir: Path,
-    examples: pl.DataFrame,
+    examples: pd.DataFrame,
     item_vocab: dict[int, int],
     cat_vocab: dict[int, int],
     stats: dict,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
-    examples.write_parquet(out_dir / "examples.parquet")
+    examples.to_parquet(out_dir / "examples.parquet", engine="pyarrow", index=False, compression="zstd")
     (out_dir / "vocab_items.json").write_text(json.dumps(item_vocab))
     (out_dir / "vocab_cats.json").write_text(json.dumps(cat_vocab))
     (out_dir / "vocab_sizes.json").write_text(json.dumps(stats["vocab_sizes"], indent=2))
@@ -402,7 +410,7 @@ def main(argv: list[str] | None = None) -> None:
         events, cutoffs, item_vocab, cat_vocab,
         max_len=args.max_len, min_len=args.min_len, max_hours=args.max_hours,
     )
-    print(f"  {examples.height:,} examples ({time.perf_counter() - t0:.1f}s)", flush=True)
+    print(f"  {len(examples):,} examples ({time.perf_counter() - t0:.1f}s)", flush=True)
 
     stats = {
         **counts,
@@ -419,11 +427,12 @@ def main(argv: list[str] | None = None) -> None:
     stats["wall_time_seconds"] = time.perf_counter() - t0
     write_outputs(args.out_dir, examples, item_vocab, cat_vocab, stats)
 
-    # Verify the artifact reads back with Polars and matches what we computed.
-    check = pl.read_parquet(args.out_dir / "examples.parquet")
-    assert check.height == examples.height, (check.height, examples.height)
-    assert check.schema == examples.schema, (check.schema, examples.schema)
-    print(f"read back {check.height:,} rows from {args.out_dir / 'examples.parquet'}")
+    # Arrow verifies the saved numeric/list types without creating another pandas frame.
+    check = pq.read_table(args.out_dir / "examples.parquet")
+    expected_schema = pa.Schema.from_pandas(examples, preserve_index=False)
+    assert check.num_rows == len(examples), (check.num_rows, len(examples))
+    assert check.schema.equals(expected_schema), (check.schema, expected_schema)
+    print(f"read back {check.num_rows:,} rows from {args.out_dir / 'examples.parquet'}")
     print(check.schema)
     print_stats(stats)
 

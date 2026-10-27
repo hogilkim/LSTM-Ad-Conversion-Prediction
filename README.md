@@ -40,7 +40,9 @@ cutoff, labels each with whether a `buy` happens in the following 24 hours, and 
 uv run python -m taobao.data.prepare --n-users 200000 --seed 42
 ```
 
-Recorded run (2026-09-02, Apple M1 Pro, 14.9 s wall, about 6.5 GB peak RSS):
+Historical **Polars** preparation run (2026-09-02, Apple M1 Pro): 14.9 s on the pipeline's
+internal clock and about 6.5 GB peak RSS. These are historical Polars measurements; the
+current implementation uses pandas/NumPy. The original cohort statistics were:
 
 | | value |
 |---|---|
@@ -56,6 +58,59 @@ Recorded run (2026-09-02, Apple M1 Pro, 14.9 s wall, about 6.5 GB peak RSS):
 Vocabularies are built only from events before the validation cutoff (Dec 2), so item and
 category indices never see validation or test days; ids seen fewer than 5 times map to the
 `rare` index 1 and index 0 is padding. Full details live in `data/processed/stats.json`.
+
+### pandas/NumPy implementation and benchmark
+
+Preparation uses two chunked pandas CSV passes (1,000,000 rows per chunk): the first
+identifies users with valid timestamps before seeded sampling; the second retains their
+valid events. NumPy handles sampling and numeric transformations. PyArrow writes Parquet
+and preserves typed sequence columns: int32 items/categories, int8 behaviors, and float32
+hours. The retained events and per-cutoff histories still require memory; chunked CSV
+reading does not make the entire pipeline streaming.
+
+Full-data migration run (2026-10-27, Apple M1 Pro, 32 GiB RAM, Python 3.12.13,
+pandas 3.1.0, NumPy 2.5.2, PyArrow 25.0.1), writing to a separate directory:
+
+```bash
+/usr/bin/time -l uv run --python 3.12 python -m taobao.data.prepare --n-users 200000 --seed 42 --out-dir data/migration-pandas-20261027/processed > data/migration-pandas-20261027/prepare.log 2> data/migration-pandas-20261027/prepare-time.txt
+```
+
+The parent directory was created before running the command. Use a fresh output directory
+for another benchmark.
+
+- Pipeline clock (`stats.json`, before output writing/readback): **64.0 s**.
+- Entire command, including startup, output writing, and Parquet readback: **68.14 s**.
+- Peak RSS from macOS `/usr/bin/time -l`: **10.95 GB** (10,949,902,336 bytes).
+
+This single pandas run was slower and used more memory than the recorded Polars run.
+The runs occurred on different dates; dependency versions and filesystem caches were
+not controlled, so these are recorded measurements rather than a controlled comparison.
+
+Migration verification matched both vocabularies, vocabulary sizes, and all preparation
+statistics except command/timing against the existing artifacts. Train's 742,611 rows
+and validation's 198,453 rows matched in their original order, including all Parquet
+values and column types (pandas adds schema metadata). All six regenerated tensor arrays
+matched the saved arrays byte for byte, including float32 normalization, lengths, dtypes,
+and right padding. Six synthetic configurations also matched the original implementation
+before Polars was removed. The tests cover legacy Parquet list/large-list columns and new
+pandas Arrow-backed columns. The benchmark logs and verification report are under
+`data/migration-pandas-20261027/` (gitignored).
+
+The original data/model artifacts and recorded model metrics were preserved. No models
+were retrained and no test predictions were scored during this migration.
+
+### Build tensor artifacts
+
+```bash
+uv run python -m taobao.data.tensors --splits train val
+```
+
+The converter uses pandas/PyArrow Parquet filtering to load one requested split and only
+the columns needed for conversion. It writes six right-padded `.npy` arrays per split
+under `data/processed/tensors/`: int64 `items`, `cats`, `behs`, and `lengths`, plus float32
+`hours` and `labels`. Hours use `log1p(hours) / log1p(168)` in float32. `load_split` opens
+only the requested arrays as read-only memory maps. This command prepares train and
+validation arrays; test preparation/evaluation remains separate from migration checks.
 
 ## Tests
 

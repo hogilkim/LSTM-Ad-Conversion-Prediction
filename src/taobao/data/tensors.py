@@ -20,7 +20,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import numpy as np
-import polars as pl
+import pandas as pd
 import torch
 
 SPLIT_CODES = {"train": 0, "val": 1, "test": 2}
@@ -37,13 +37,13 @@ def _right_pad(sequences: list[list[int | float]], max_len: int, dtype: np.dtype
     return padded
 
 
-def examples_to_tensors(examples: pl.DataFrame, max_len: int = 50) -> dict[str, torch.Tensor]:
+def examples_to_tensors(examples: pd.DataFrame, max_len: int = 50) -> dict[str, torch.Tensor]:
     """Right-pad processed examples and return tensors ready for a model."""
-    items = _right_pad(examples["items"].to_list(), max_len, np.dtype(np.int64))
-    cats = _right_pad(examples["cats"].to_list(), max_len, np.dtype(np.int64))
-    behs = _right_pad(examples["behs"].to_list(), max_len, np.dtype(np.int64))
+    items = _right_pad(examples["items"].tolist(), max_len, np.dtype(np.int64))
+    cats = _right_pad(examples["cats"].tolist(), max_len, np.dtype(np.int64))
+    behs = _right_pad(examples["behs"].tolist(), max_len, np.dtype(np.int64))
 
-    hours = _right_pad(examples["hours"].to_list(), max_len, np.dtype(np.float32))
+    hours = _right_pad(examples["hours"].tolist(), max_len, np.dtype(np.float32))
     hours = np.log1p(hours) / np.log1p(np.float32(168.0))
 
     lengths = examples["seq_len"].to_numpy().astype(np.int64)
@@ -67,14 +67,18 @@ def build_split(
 ) -> dict[str, torch.Tensor]:
     """Pad one split's examples and write its six ``.npy`` arrays to ``out_dir``.
 
-    The parquet filter is pushed down by :func:`polars.scan_parquet`, so only the rows for
-    this split are ever materialised.
+    PyArrow applies the Parquet filter before creating the pandas frame. Arrow-backed
+    columns preserve nested sequence types from both legacy and pandas-written files.
     """
     if split not in SPLIT_CODES:
         raise ValueError(f"unknown split {split!r}, expected one of {sorted(SPLIT_CODES)}")
 
-    examples = (
-        pl.scan_parquet(examples_path).filter(pl.col("split") == SPLIT_CODES[split]).collect()
+    examples = pd.read_parquet(
+        examples_path,
+        engine="pyarrow",
+        filters=[("split", "==", SPLIT_CODES[split])],
+        columns=["items", "cats", "behs", "hours", "seq_len", "label"],
+        dtype_backend="pyarrow",
     )
     tensors = examples_to_tensors(examples, max_len=max_len)
 

@@ -36,8 +36,14 @@ model through FastAPI. Do not describe this project as recommendation or ads ran
 
 Completed:
 
-- Raw-data preparation and time-based examples.
+- Raw-data preparation and time-based examples using pandas/NumPy, with PyArrow for
+  Parquet and typed sequence columns.
 - Fixed, memory-mapped NumPy tensor artifacts.
+- pandas/NumPy migration verified on 2026-10-27: vocabularies, preparation statistics,
+  train/validation Parquet rows, and all six tensor arrays match the original artifacts.
+  Polars is removed. The README records the full-data benchmark and identifies the old
+  Polars preparation timing as historical. Original artifacts and model metrics remain
+  unchanged; no test predictions were scored for this migration.
 - `TensorSplitDataset`.
 - Length-aware `ConversionLSTM` using packed sequences.
 - Reproducible training, early stopping, atomic best checkpoint saving, checkpoint
@@ -85,7 +91,8 @@ Immediate next work, following the plan in `CLAUDE.md`:
 
 ## Code conventions
 
-- Use Polars for dataframe work and Parquet for processed tabular artifacts.
+- Use pandas and NumPy for dataframe and array work. Keep PyArrow for Parquet and typed
+  sequence columns.
 - Keep modules small and focused; add tests for cutoff, labeling, vocabulary, padding,
   evaluation, and train/test isolation behavior.
 - Reuse one encoding path for offline scoring and future serving.

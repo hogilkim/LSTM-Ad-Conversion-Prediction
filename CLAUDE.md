@@ -43,6 +43,9 @@ who works on ranking will notice.
 
 Implemented in `src/taobao/data/prepare.py`.
 
+- Use pandas/NumPy, with PyArrow for Parquet and typed sequence columns. CSV loading uses
+  two passes in chunks of 1,000,000 rows: identify eligible users before seeded sampling,
+  then retain their valid events. The sampled events remain in memory.
 - Sample 200K users with seed 42.
 - Daily cutoffs at 00:00 UTC+8.
   - Train cutoffs: Nov 28, Nov 29, Nov 30, Dec 1 (`split = 0`)
@@ -57,6 +60,13 @@ Implemented in `src/taobao/data/prepare.py`.
 - Each event carries `hours_before_cutoff`, clipped at 168.
 - Output: `data/processed/examples.parquet` with list columns `items, cats, behs, hours`
   plus `label, split, seq_len, user_id, cutoff`; vocabulary JSON files; `stats.json`.
+
+The pandas/NumPy migration was verified on 2026-10-27 against the original vocabularies,
+statistics, train/validation Parquet rows, and all six saved tensor arrays. Tensor loading
+uses pandas/PyArrow split filtering and preserves right padding, float32 normalization,
+array dtypes, filenames, and memory mapping. The README records the full-data benchmark
+and distinguishes the historical Polars measurements. Existing artifacts and model
+metrics were preserved; this migration did not retrain models or score test predictions.
 
 ## Model plan
 
@@ -225,7 +235,7 @@ notebooks/              exploration only, never the source of truth
 data/, models/          gitignored
 ```
 
-Dependencies: polars, numpy, pyarrow, scikit-learn, torch, fastapi, uvicorn.
+Dependencies: pandas, numpy, pyarrow, scikit-learn, torch, fastapi, uvicorn.
 Dev: pytest, kaggle.
 
 ## Commands
@@ -242,7 +252,7 @@ uv run pytest                             # tests
 
 ## Conventions
 
-- Polars for data work, not Pandas. Parquet for processed data.
+- pandas and NumPy for data work. PyArrow for Parquet and typed sequence columns.
 - Small files with one purpose. Tests for data logic, especially cutoffs, labeling, and
   vocabulary construction.
 - Commit messages in imperative mood.
